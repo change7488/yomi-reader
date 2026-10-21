@@ -20,3 +20,19 @@ for (const name of ['MainActivity.java', 'ReaderKeysPlugin.java', 'ReaderFilesPl
   copyFileSync(resolve('mobile/native', name), resolve(nativeFolder, name));
 }
 console.log('Android ReaderKeys bridge installed');
+
+// Use the exact same artwork as the Windows .ico, not a generated Capacitor launcher.
+const iconSource = resolve('assets/yomi-reader.png');
+if (!existsSync(iconSource)) throw new Error('缺少 Windows 共用图标：assets/yomi-reader.png');
+const iconFolder = resolve('mobile/android/app/src/main/res/drawable-nodpi');
+mkdirSync(iconFolder, { recursive: true });
+copyFileSync(iconSource, resolve(iconFolder, 'yomi_launcher.png'));
+const manifestPath = resolve('mobile/android/app/src/main/AndroidManifest.xml');
+let manifest = readFileSync(manifestPath, 'utf8');
+for (const attr of ['icon', 'roundIcon']) {
+  const pattern = new RegExp('android:' + attr + '="[^"]+"');
+  if (!pattern.test(manifest)) throw new Error('AndroidManifest.xml 未找到 ' + attr + ' 配置');
+  manifest = manifest.replace(pattern, 'android:' + attr + '="@drawable/yomi_launcher"');
+}
+writeFileSync(manifestPath, manifest);
+console.log('Android 桌面图标已统一为 assets/yomi-reader.png');
