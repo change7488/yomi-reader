@@ -167,7 +167,7 @@ public class ReaderFilesPlugin extends Plugin {
         JSArray files = new JSArray();
         for (Uri uri : uris) {
             try {
-                JSObject meta = describeFile(uri);
+                JSObject meta = describeFile(uri, false);
                 if (meta == null) continue;
                 String key = UUID.randomUUID().toString();
                 synchronized (allowedFiles) { allowedFiles.put(key, uri); }
@@ -181,7 +181,52 @@ public class ReaderFilesPlugin extends Plugin {
         call.resolve(reply);
     }
 
-    private JSObject describeFile(Uri uri) {
+    @PluginMethod
+    public void chooseFonts(PluginCall call) {
+        Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+        intent.setType("*/*");
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.putExtra(Intent.EXTRA_ALLOW_MULTIPLE, true);
+        intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivityForResult(call, intent, "onFontsChosen");
+    }
+
+    @ActivityCallback
+    private void onFontsChosen(PluginCall call, ActivityResult result) {
+        Intent data = result.getData();
+        if (result.getResultCode() != Activity.RESULT_OK || data == null) {
+            JSObject reply = new JSObject();
+            reply.put("cancelled", true);
+            call.resolve(reply);
+            return;
+        }
+        List<Uri> uris = new ArrayList<>();
+        ClipData clip = data.getClipData();
+        if (clip != null) {
+            for (int i = 0; i < clip.getItemCount() && i < 40; i++) {
+                Uri uri = clip.getItemAt(i).getUri();
+                if (uri != null) uris.add(uri);
+            }
+        } else if (data.getData() != null) uris.add(data.getData());
+        synchronized (allowedFiles) { allowedFiles.clear(); }
+        JSArray files = new JSArray();
+        for (Uri uri : uris) {
+            try {
+                JSObject meta = describeFile(uri, true);
+                if (meta == null) continue;
+                String key = UUID.randomUUID().toString();
+                synchronized (allowedFiles) { allowedFiles.put(key, uri); }
+                meta.put("key", key);
+                files.put(meta);
+            } catch (Exception ignored) { }
+        }
+        JSObject reply = new JSObject();
+        reply.put("cancelled", false);
+        reply.put("files", files);
+        call.resolve(reply);
+    }
+
+    private JSObject describeFile(Uri uri, boolean acceptFonts) {
         String[] columns = { DocumentsContract.Document.COLUMN_DISPLAY_NAME, DocumentsContract.Document.COLUMN_SIZE };
         try (Cursor c = getContext().getContentResolver().query(uri, columns, null, null, null)) {
             if (c == null || !c.moveToFirst()) return null;
@@ -189,7 +234,10 @@ public class ReaderFilesPlugin extends Plugin {
             if (name == null) return null;
             int dot = name.lastIndexOf('.');
             String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
-            if (!ext.equals("epub") && !ext.equals("pdf") && !ext.equals("txt")) return null;
+            boolean accepted = acceptFonts
+                ? (ext.equals("ttf") || ext.equals("otf") || ext.equals("woff") || ext.equals("woff2"))
+                : (ext.equals("epub") || ext.equals("pdf") || ext.equals("txt"));
+            if (!accepted) return null;
             long size = c.isNull(1) ? 0L : c.getLong(1);
             JSObject item = new JSObject();
             item.put("name", name);
