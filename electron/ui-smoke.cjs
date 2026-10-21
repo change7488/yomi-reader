@@ -8,6 +8,9 @@ app.setPath('userData', profile);
 
 app.whenReady().then(async () => {
   const win = new BrowserWindow({ show: false, width: 1100, height: 800, webPreferences: { nodeIntegration: false, contextIsolation: true } });
+  win.webContents.on('console-message', (_event, details) => {
+    if (details?.level === 'error') console.error('[Renderer]', details.message);
+  });
   try {
     await win.loadFile(path.join(__dirname, '../ui-prototype/index.html'));
     await win.webContents.executeJavaScript(`new Promise(resolve => { const check = () => document.querySelector('#dashboardStats')?.children.length ? resolve() : setTimeout(check, 40); check(); })`);
@@ -56,7 +59,7 @@ app.whenReady().then(async () => {
       checks.import = $('resultText').textContent.includes('共 1 本');
       const realBook = [...$('bookGrid').querySelectorAll('[data-open]')].find(button => button.getAttribute('aria-label')?.includes('界面测试'));
       realBook.click();
-      await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerStage').textContent.includes('这是第一段')) resolve(); else if (Date.now()-started>5000) reject(new Error('打开 TXT 超时')); else setTimeout(check,40); }; check(); });
+      await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerStage').textContent.includes('这是第一段')) resolve(); else if (Date.now()-started>5000) reject(new Error('打开 TXT 超时：' + $('readerStage').textContent.slice(0,280) + '，打开状态=' + !$('readerModal').classList.contains('hidden'))); else setTimeout(check,40); }; check(); });
       checks.reader = !$('readerModal').classList.contains('hidden') && $('readerStage').textContent.includes('这是第一段');
       $('readerBack').click();
       await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerModal').classList.contains('hidden')) resolve(); else if (Date.now()-started>5000) reject(new Error('关闭阅读页超时')); else setTimeout(check,40); }; check(); });
