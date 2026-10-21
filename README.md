@@ -1,10 +1,10 @@
 <div align="center">
   <img src="assets/yomi-reader.png" alt="Yomi Reader 图标：黑发少女阅读青绿色书籍" width="144" />
   <h1>Yomi Reader</h1>
-  <p>为轻小说爱好者打造的 Windows 本地阅读器</p>
+  <p>为轻小说爱好者打造的 Windows / Android 离线阅读器</p>
 </div>
 
-一个面向 Windows 的本地轻小说阅读器。当前桌面版使用 Electron、HTML、CSS 和 JavaScript；仓库还保留了早期的 Python BookBridge 实验代码。项目仍处于预览阶段。
+一个共用 HTML/CSS/JavaScript 阅读核心的离线轻小说阅读器。Windows 使用 Electron 桌面壳，Android ARM64 使用 Capacitor。书库、EPUB/TXT 解析、阅读进度和主题代码共用，平台特有能力放在独立适配层。项目仍处于预览阶段。
 
 ## 界面预览
 
@@ -21,6 +21,21 @@
 [下载 Yomi Reader v0.2.3 Windows 安装程序](https://github.com/change7488/yomi-reader/releases/download/v0.2.3/Yomi-Reader-0.2.3-x64-Setup.exe)
 
 运行安装程序并按提示完成安装。预览版面向 Windows x64；尚未进行代码签名，Windows 可能显示发布者验证提示。
+
+## Android ARM64 测试版
+
+Android APK 由 GitHub Actions 自动编译。打开仓库的 [Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)，选择成功的 **Android ARM64 APK** 构建，在底部的 **Artifacts** 下载 `Yomi-Reader-Android-arm64-debug`，解压获得 APK。
+
+这是适用于 ARM64 Android（Android 7.0+）的**测试版**，使用 debug 签名，不代表已经进行全部设备兼容性测试。手机端提供底部导航、手势翻页、本地导入与 PDF.js 离线预览；目前不支持 Windows 独有的磁盘管理和文件夹下载监控。两个平台不会自动同步书库。
+
+有 Android Studio / Android SDK 36、JDK 21、Node.js 22 的开发者可在仓库根目录运行：
+
+```powershell
+npm ci
+npm run android:apk
+```
+
+生成路径：`release/Yomi-Reader-Android-arm64-debug.apk`。正式发布前需要配置独立的 release 签名。
 
 ## 运行桌面版
 
@@ -55,6 +70,9 @@ npm run test:ui
 ## 仓库结构
 
 - `electron/`：Windows 桌面壳、本地文件存储和测试。
+- `ui-prototype/reader/`：Windows / Android 共用的阅读器控制器、格式解析与进度模块。
+- `ui-prototype/platform/`：Android 手机布局、手势交互与 PDF 适配。
+- `docs/DEVELOPMENT.md`：代码分层、Android 构建和开发规范。
 - `ui-prototype/`：阅读器界面、书库逻辑、阅读解析与测试。
 - `app.py`、`core.py`：早期 Python BookBridge 实验版，和当前桌面阅读器分开运行。
 
