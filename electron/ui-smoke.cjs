@@ -19,6 +19,8 @@ app.whenReady().then(async () => {
       const click = selector => document.querySelector(selector).click();
       const checks = {};
       checks.home = !$('dashboard').classList.contains('hidden') && $('dashboardStats').children.length === 4;
+      checks.originalBrand = document.querySelector('.brand-mark img')?.getAttribute('src') === 'assets/yomi-reader.png' &&
+        document.querySelector('.brand-mark img')?.complete && document.querySelector('.brand-mark img')?.naturalWidth > 0;
       checks.onboardingWelcome = !!document.querySelector('#yomiWelcomeTitle');
       document.querySelector('[data-guide-skip]')?.click();
       checks.onboardingSkip = !document.querySelector('.yomi-guide-layer') && !!JSON.parse(localStorage.getItem('yomi-onboarding-v1'))?.completed;
@@ -46,6 +48,8 @@ app.whenReady().then(async () => {
       checks.folderCancel = $('folderEditorModal').classList.contains('hidden');
       click('#settingsBtn');
       checks.settings = !$('settingsPage').classList.contains('hidden');
+      checks.offlineFontCatalog = $('settingsPage').querySelectorAll('.yomi-font-card').length === 21;
+      checks.fontImportControl = !!$('settingsPage').querySelector('[data-font-import]');
       checks.helpEntry = !!$('yomiSettingsHelp') && !!$('yomiReplayGuide');
       $('yomiSettingsHelp').click();
       checks.helpOpens = !!document.querySelector('#yomiHelpTitle');
@@ -61,6 +65,7 @@ app.whenReady().then(async () => {
       realBook.click();
       await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerStage').textContent.includes('这是第一段')) resolve(); else if (Date.now()-started>5000) reject(new Error('打开 TXT 超时：' + $('readerStage').textContent.slice(0,280) + '，打开状态=' + !$('readerModal').classList.contains('hidden') + '，书目连接=' + realBook.isConnected + '，消息=' + $('toastStack').textContent.slice(0,260))); else setTimeout(check,40); }; check(); });
       checks.reader = !$('readerModal').classList.contains('hidden') && $('readerStage').textContent.includes('这是第一段');
+      checks.readerFontPanel = $('readerSettings').querySelectorAll('.yomi-font-card').length === 21;
       $('readerBack').click();
       await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerModal').classList.contains('hidden')) resolve(); else if (Date.now()-started>5000) reject(new Error('关闭阅读页超时')); else setTimeout(check,40); }; check(); });
       checks.readerClose = $('readerModal').classList.contains('hidden');
