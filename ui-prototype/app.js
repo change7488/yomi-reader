@@ -1,5 +1,6 @@
 import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
 import { initMobileShell } from './platform/mobile-shell.js';
+import { pageDirectionForKey } from './reader/reading-interactions.js';
 import { createReaderController } from './reader/reader-controller.js';
 import { createLibraryView } from './library/library-view.js';
 import { createDashboardView } from './home/dashboard-view.js';
@@ -527,8 +528,16 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
       else if (e.key === 'F11' && !$('readerModal').classList.contains('hidden')) { e.preventDefault(); toggleReaderFullscreen(); }
       else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); navigateReaderBack(); }
       else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); navigateReaderForward(); }
-      else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('button,input,textarea,select') && (e.key === 'PageDown' || e.key === 'PageUp')) { markReaderActivity(); e.preventDefault(); moveReaderPage(e.key === 'PageDown' ? 1 : -1); }
-      else if (e.key === 'Escape') { if (document.fullscreenElement) return; if ($('readerLightbox').classList.contains('open')) $('readerLightbox').classList.remove('open'); else if ($('readerNotesPanel').classList.contains('open')) $('readerNotesPanel').classList.remove('open'); else if ($('readerSearchPanel').classList.contains('open')) $('readerSearchPanel').classList.remove('open'); else if ($('readerPositionHistory').classList.contains('open')) $('readerPositionHistory').classList.remove('open'); else if (!$('readerModal').classList.contains('hidden')) closeReader(); }
+      else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('button,input,textarea,select,[contenteditable="true"]') && !e.ctrlKey && !e.altKey && !e.metaKey && !$('readerLightbox').classList.contains('open') && pageDirectionForKey(e.key, e.shiftKey)) { markReaderActivity(); e.preventDefault(); if (state.readerChapters.length) moveReaderPage(pageDirectionForKey(e.key, e.shiftKey)); }
+      else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'h') { e.preventDefault(); $('readerModal').classList.toggle('reader-ui-hidden'); }
+      else if (e.key === 'Escape') {
+        if (document.fullscreenElement) return;
+        const modal = $('readerModal');
+        const panels = ['readerLightbox','readerNotesPanel','readerSearchPanel','readerPositionHistory','readerToc','readerGallery','readerSettings','readerBookmarks','readerThemePicker','readerSeekPreview'];
+        const open = panels.map(id => $(id)).find(el => el && (el.classList.contains('open') || (el.id === 'readerSeekPreview' && !el.classList.contains('hidden'))));
+        if (open) { e.preventDefault(); if (open.id === 'readerSeekPreview') open.classList.add('hidden'); else open.classList.remove('open'); }
+        else if (!modal.classList.contains('hidden')) { e.preventDefault(); void closeReader(); }
+      }
     });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { if (state.readerBook && state.readerChapters.length) persistReaderPosition(true).catch(error => console.warn('切到后台时保存位置失败', error)); else state.positionService?.flushAll(); } });
     window.addEventListener('beforeunload', () => { if (state.readerBook && state.readerChapters.length) persistReaderPosition(true).catch(error => console.warn('退出时保存位置失败', error)); else state.positionService?.flushAll(); });
