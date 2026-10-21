@@ -11,6 +11,8 @@ import { readBookMetadata, validateBookFile } from './reader/index.js';
 import { createOnboarding } from './onboarding/onboarding.js';
 import { addFolderLinks, deleteBookEntity, deleteFolderTree, removeFolderLinks } from './library-model.js';
 import { NavigationHistoryService, ReadingPositionService } from './reader/position-services.js';
+import { createFontManager } from './fonts/font-manager.js';
+import { androidFilePicker, chooseAndroidFonts } from './platform/android-files.js';
 
 (() => {
   'use strict';
@@ -55,6 +57,8 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   });
 
   const { dbRequest, all, put } = createDatabaseQueries(() => state.db);
+  const fontManager = createFontManager({ all, put, dbRequest, toast });
+  const nativeFontPicker = () => androidFilePicker() ? chooseAndroidFonts() : null;
   function saveFolderLinks(nextLinks) {
     return new Promise((resolve, reject) => {
       const tx = state.db.transaction('folderBooks', 'readwrite'), store = tx.objectStore('folderBooks');
@@ -316,7 +320,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   const { renderDashboard } = createDashboardView({ state, $, esc, coverSrc, navigate, renderReadingAnalytics });
   const { renderTasks } = createTaskView({ state, $, esc });
   // The same reader controller drives Electron and Android WebView.
-  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook, closeReader, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn });
+  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook, closeReader, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn, fontManager, chooseFontFiles: androidFilePicker() ? nativeFontPicker : null });
 
   function render() { renderFolders(); renderBooks(); renderTasks(); renderDashboard(); }
   function titleFor(route) { if (route.startsWith('folder:')) return folderById(route.slice(7))?.name || '我的文件夹'; return ({ all: '全部图书', favorites: '我的喜爱', history: '阅读记录' })[route] || '我的书库'; }
@@ -647,6 +651,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     $('settingsPage').append(helpRow);
     $('yomiSettingsHelp').onclick = () => onboarding.showHelp();
     $('yomiReplayGuide').onclick = () => onboarding.start();
+    fontManager.attach($('settingsPage'), { reader: false, chooseFiles: androidFilePicker() ? nativeFontPicker : null });
     $('themeBtn').onclick = () => { const panel = $('appearancePopover'); panel.classList.toggle('hidden'); $('themeBtn').setAttribute('aria-expanded', String(!panel.classList.contains('hidden'))); };
     document.querySelectorAll('[data-palette-choice]').forEach(button => button.onclick = () => { appearance.palette = button.dataset.paletteChoice; appearance.accent = ''; saveAppearance(); });
     document.querySelectorAll('[data-mode-choice]').forEach(button => button.onclick = () => { appearance.mode = button.dataset.modeChoice; saveAppearance(); });
@@ -727,6 +732,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     });
     try { const savedAnalytics = await dbRequest('settings', 'readonly', store => store.get('readingAnalytics')); if (savedAnalytics?.value) state.readingAnalytics = { days: savedAnalytics.value.days || {}, books: savedAnalytics.value.books || {} }; }
     catch (e) { console.warn('读取阅读统计失败', e); }
+    if (state.db) await fontManager.initialize().catch(error => { console.warn('字体库初始化失败', error); toast('自定义字体暂时无法读取。', 'error'); });
     initEvents();
     initAppearance();
     initMobileShell({ navigate, closeReader, readerIsOpen: () => Boolean(state.readerBook),
