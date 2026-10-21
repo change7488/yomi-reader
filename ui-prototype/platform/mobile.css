@@ -62,3 +62,5 @@
 .folder-import-choices { display:flex; flex-wrap:wrap; gap:12px; padding:10px 0; align-items:center; }
 .folder-import-choices label { display:flex; align-items:center; gap:6px; font-size:13px; }
 .platform-android .reader-modal.reader-ui-hidden { padding-top:0; padding-bottom:0; }
+
+.platform-android .yomi-mark svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
