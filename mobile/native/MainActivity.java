@@ -9,6 +9,7 @@ public class MainActivity extends BridgeActivity {
     @Override
     public void onCreate(Bundle savedInstanceState) {
         registerPlugin(ReaderKeysPlugin.class);
+        registerPlugin(ReaderFilesPlugin.class);
         super.onCreate(savedInstanceState);
     }
 
