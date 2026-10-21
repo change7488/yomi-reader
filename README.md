@@ -1,65 +1,105 @@
 <div align="center">
-  <img src="assets/yomi-reader.png" alt="Yomi Reader 图标：黑发少女阅读青绿色书籍" width="144" />
+  <img src="assets/yomi-reader.png" alt="Yomi Reader 原创软件图标" width="142" />
   <h1>Yomi Reader</h1>
-  <p>为轻小说爱好者打造的 Windows 本地阅读器</p>
+  <p>给小说一个安静的阅读空间 · Windows / Android 本地电子书阅读器</p>
+  <p><a href="https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml">查看双端构建</a> · <a href="https://github.com/change7488/yomi-reader/releases">Releases</a> · <a href="CHANGELOG.md">更新日志</a> · <a href="docs/DEVELOPMENT.md">开发指南</a></p>
 </div>
 
-一个面向 Windows 的本地轻小说阅读器。当前桌面版使用 Electron、HTML、CSS 和 JavaScript；仓库还保留了早期的 Python BookBridge 实验代码。项目仍处于预览阶段。
+Yomi Reader 是一款以 **本地书库、舒适排版、可恢复的阅读进度** 为重点的开源预览版阅读器。Windows 使用 Electron，Android ARM64 使用 Capacitor；两端**共用同一份 HTML/CSS/JavaScript 阅读界面、书库模型、EPUB/TXT 解析与进度管理**，只把文件访问、系统按键等能力放在平台适配层。
 
 ## 界面预览
 
-首页展示继续阅读进度、书库概览与近期阅读统计；书库支持封面网格、列表和封面大小调整。截图使用虚构的演示书籍，不含个人书库内容。
+| 首页 | 本地书库 |
+| :--: | :--: |
+| ![首页](screenshots/home.png) | ![书库](screenshots/library.png) |
 
-![Yomi Reader 首页](screenshots/home.png)
+截图为 Windows 版演示书库，Android 采用适配手机的底部导航及沉浸式阅读布局。
 
-![Yomi Reader 本地图书馆](screenshots/library.png)
+## 功能
 
-## 下载 Windows 预览版
+- **本地格式**：导入 EPUB、TXT、PDF；解析 EPUB 目录与插图，TXT 支持章节规则和编码选项。Android PDF 使用本地 PDF.js；Windows PDF 使用 Electron 预览。
+- **文件夹批量导入**：Windows 和 Android 都可选择目录，递归识别 EPUB / TXT / PDF；格式筛选、默认全选、取消全选、单本勾选。支持一次导入多本文件。
+- **安全去重**：通过 SHA-256 内容指纹跳过已入库文件；默认不重复导入，文件夹导入时可主动允许重复。同一本书的阅读进度不会因再次导入被覆盖。
+- **字体库 v0.3.0**：内置 **20 款开源字体风格**（19 款包含中文字符）；支持分类预览、每本书独立选择、设置全局默认，以及从设备导入 TTF / OTF / WOFF / WOFF2 字体。安装后离线可用。
+- **阅读体验**：主题、字号、行距、左右留白、滚动/翻页模式、书签、笔记、章节搜索、朗读及阅读记录。
+- **进度可恢复**：章节目录、书签和进度条的跳转历史、上一步/下一步及跨次阅读会话记录；正常翻页不会每一页都写入跳转历史。
+- **手机操作**：左右区域轻点翻页、中心轻点隐藏工具栏、音量键翻页、系统返回键；阅读时可隐藏系统状态栏和导航栏，离开阅读器后恢复。
+- **本机使用**：不需要创建账号。当前没有跨设备自动同步；书籍、字体和阅读记录不会被主动上传。
 
-前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases) 查看版本；当前 Windows x64 预览版为 v0.2.3：
+## 安装与下载
 
-[下载 Yomi Reader v0.2.3 Windows 安装程序](https://github.com/change7488/yomi-reader/releases/download/v0.2.3/Yomi-Reader-0.2.3-x64-Setup.exe)
+### Windows x64
 
-运行安装程序并按提示完成安装。预览版面向 Windows x64；尚未进行代码签名，Windows 可能显示发布者验证提示。
+已发布的稳定预览安装包仍可从 [Releases](https://github.com/change7488/yomi-reader/releases) 获取（历史 v0.2.3）。**v0.3.0** 的 Windows 安装包由 [GitHub Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml) 的成功构建生成，位于 **Artifacts → Yomi-Reader-Windows-x64-Setup**。合并或发布前建议优先试用此版本。
 
-## 运行桌面版
+### Android ARM64
 
-需要 Node.js 和 npm。在仓库根目录运行：
+进入同一个 [Actions 构建页面](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)，选择最新成功的构建，在底部 **Artifacts → Yomi-Reader-Android-arm64-debug** 下载 ZIP，解压得到 `Yomi-Reader-Android-arm64-debug.apk`，然后在手机上安装。
+
+**提醒**：目前 APK 为自动构建的 debug 签名测试版，签名可能随构建变化，无法保证每次都能直接覆盖旧版。卸载应用可能清除本机书库、阅读进度与自定义字体，更新前请妥善备份原始电子书。后续公开发行需要固定的发布签名。
+
+## 字体：20 款已内置，支持导入
+
+在 **阅读器 → 排版 → 阅读字体** 中可以预览和切换字体；在 **偏好设置 → 阅读字体** 中也可以导入或设置默认字体。
+
+默认字体包包括：思源黑体（常规/粗/特粗）、思源宋体（常规/粗/特粗）、朱雀仿宋、霞鹜文楷、得意黑、抖音美好体、未来荧黑、站酷庆科黄油体、站酷快乐体、江城圆体、猫啃什锦黑、铁蒺藜体、马善政楷书、志莽行书、缝合像素字体，以及 Cormorant Garamond 西文字体。
+
+内置字体均来自具有 OFL-1.1 授权信息的 [Qiaomu Cover Fonts](https://github.com/joeseesun/qiaomu-cover-fonts) v1.0.0 字体集合；源文件按 SHA-256 校验，构建时自动下载并将相应许可证一并打包。为控制包大小，中文字体采用了原提供方的字符子集；遇到未覆盖的字形时会自动回退到系统字体。所有字体的版权属于各自作者，详情见 `ui-prototype/fonts/licenses/`（构建产物中）和 `ui-prototype/fonts/catalog.json`。
+
+自定义字体只保存在当前设备的 IndexedDB 中，单文件限制 16 MB，最多 40 款；删除字体不删除你的书籍。
+
+## 从源码运行
+
+需要 Node.js 22+。初次运行需要联网下载约 30 MB 的已校验字体，之后可离线启动；字体二进制文件按工程规范不提交进 Git。
 
 ```powershell
+git clone https://github.com/change7488/yomi-reader.git
+cd yomi-reader
 npm ci
+npm run fonts:sync
+npm run check
 npm start
 ```
 
-或双击 `启动LibraReader.bat`。应用程序内部沿用早期的 `Libra Reader` 数据目录标识，以便延续本机已有数据；界面名称为 Yomi Reader。
-
-## 已实现
-
-- 导入 EPUB、PDF、TXT，复制图书到软件管理目录，并按文件哈希检查重复。
-- 本地图书馆、搜索、筛选、网格与列表视图、封面大小调整、收藏和虚拟文件夹。
-- TXT 章节识别、EPUB 目录与插图浏览、阅读排版与主题设置。
-- 阅读位置自动保存、跳转历史、误跳转返回，以及本机阅读统计。
-- 三套界面配色、浅色／深色／跟随系统模式、自定义强调色。
-
-部分高级阅读和书库管理功能仍在开发中。PDF 阅读依赖 Electron 内置预览能力。网页预览与桌面版的文件存储方式不同；请在桌面版中检查实际使用的数据。
-
-## 测试
+打包 Windows：
 
 ```powershell
-npm test
+npm run dist:win
+```
+
+打包 Android ARM64（另外需要 JDK 21 和 Android SDK 36）：
+
+```powershell
+npm run android:apk
+```
+
+以上构建都会准备离线字体资源。详细结构、平台限制及开发约定见 [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)。
+
+## 项目结构
+
+```text
+ui-prototype/
+  app.js                 应用入口
+  reader/                共享阅读控制器 / EPUB TXT / 进度服务
+  fonts/                 字体管理、20 款清单、授权与离线资源
+  library/               书库视图
+  storage/               IndexedDB 迁移与访问
+  platform/              Android 文件导入、手机布局与 PDF
+  onboarding/            新手教程
+  styles/                分模块 CSS
+electron/                Windows 桌面原生壳
+mobile/                  Android Capacitor 壳与原生桥接
+scripts/                 字体同步、Android 构建与图标配置
+docs/                    开发文档
+```
+
+**兼容性**：为保留老用户书库，Windows 内部数据库名称和 Electron appId 沿用早期 Libra Reader 标识，外观与产品名称统一为 Yomi Reader；不会为了修改品牌而自动迁移或删除用户数据。
+
+## 测试、许可证与反馈
+
+```powershell
+npm run check
 npm run test:ui
 ```
 
-`test:ui` 使用临时配置目录进行界面冒烟测试，不会修改正常使用的书库。构建安装包可运行 `npm run dist:win`。
-
-## 仓库结构
-
-- `electron/`：Windows 桌面壳、本地文件存储和测试。
-- `ui-prototype/`：阅读器界面、书库逻辑、阅读解析与测试。
-- `app.py`、`core.py`：早期 Python BookBridge 实验版，和当前桌面阅读器分开运行。
-
-用户导入的图书、阅读记录、账号信息及构建产物不属于源码，不应提交到仓库。本项目不附带任何受版权保护的书籍。
-
-## 许可证
-
-源码以 [MIT License](LICENSE) 发布。第三方依赖各自遵循其许可证。
+阅读器源码使用 [MIT License](LICENSE)。第三方字体、Electron/Capacitor 及其他依赖遵循各自许可。项目不提供受版权保护的书籍。欢迎在 [Issues](https://github.com/change7488/yomi-reader/issues) 反馈兼容性问题或功能建议。

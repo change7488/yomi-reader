@@ -220,7 +220,7 @@ function createMainWindow() {
     minHeight: 640,
     show: false,
     backgroundColor: '#090a0c',
-    title: 'Libra Reader',
+    title: 'Yomi Reader',
     icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
@@ -236,6 +236,18 @@ function createMainWindow() {
   mainWindow.loadURL(`${APP_SCHEME}://app/index.html`);
   mainWindow.on('closed', () => { mainWindow = null; });
 }
+
+// A second launch should activate the existing window instead of competing for
+// the same Chromium cache and IndexedDB files. Keep the existing appId/userData.
+if (!app.requestSingleInstanceLock()) {
+  app.quit();
+} else {
+  app.on('second-instance', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    if (mainWindow.isMinimized()) mainWindow.restore();
+    mainWindow.show();
+    mainWindow.focus();
+  });
 
 app.whenReady().then(() => {
   protocol.handle(APP_SCHEME, request => {
@@ -347,6 +359,7 @@ app.whenReady().then(() => {
   mainWindow.webContents.once('did-finish-load', () => startFolderMonitor());
   app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createMainWindow(); });
 });
+}
 
 app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
 app.on('before-quit', () => { if (scanTimer) clearInterval(scanTimer); });

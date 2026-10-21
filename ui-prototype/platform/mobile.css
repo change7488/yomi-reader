@@ -1,0 +1,88 @@
+/* Android only. Shared Windows/Android UI remains in styles/. */
+.platform-android { --sidebar: 0px; min-height: 100dvh; overscroll-behavior: none; -webkit-tap-highlight-color: transparent; }
+.platform-android .sidebar { display: none !important; }
+.platform-android .main-area, .platform-android.sidebar-collapsed .main-area { margin-left: 0 !important; min-height: 100dvh; padding-bottom: calc(75px + env(safe-area-inset-bottom,0px)); }
+.platform-android .topbar { position:sticky; top:0; z-index:10; height:calc(58px + env(safe-area-inset-top,0px)); padding:env(safe-area-inset-top,0px) 14px 0; gap:10px; background:var(--panel); }
+.platform-android .mobile-brand { display:block; font-size:15px; white-space:nowrap; }
+.platform-android .search-box { flex:1; min-width:0; max-width:none; height:36px; }
+.platform-android .search-box input { min-width:0; width:100%; font-size:12px; }
+.platform-android .top-actions { gap:4px; }
+.platform-android #themeBtn { display:none; }
+.platform-android #profileBtn { width:36px; height:36px; }
+.platform-android .content, .platform-android .subpage { padding:18px 14px 30px !important; max-width:100%; }
+.platform-android .dashboard-heading { flex-direction:column; align-items:flex-start; gap:14px; }
+.platform-android .dashboard-heading h1 { font-size:clamp(23px,6vw,30px); }
+.platform-android .dashboard-actions { flex-direction:row; align-items:center; }
+.platform-android .dashboard-actions button { min-height:42px; font-size:12px; }
+.platform-android .dashboard-stats { grid-template-columns:repeat(2,minmax(0,1fr)); }
+.platform-android .recent-books, .platform-android .book-grid:not(.list-mode) { grid-template-columns:repeat(2,minmax(0,1fr)); gap:14px 10px; }
+.platform-android .recent-book:nth-child(n+3) { display:none; }
+.platform-android .book-grid.list-mode { grid-template-columns:1fr; }
+.platform-android .view-heading { flex-direction:column; align-items:flex-start; gap:12px; }
+.platform-android .heading-actions, .platform-android .library-subbar { flex-wrap:wrap; gap:12px; }
+.platform-android .density-control { display:none; }
+.platform-android .settings-card { flex-wrap:wrap; gap:10px; }
+.platform-android .settings-card button { min-height:42px; }
+.platform-android .reader-modal { height:100dvh; padding-top:env(safe-area-inset-top,0px); padding-bottom:env(safe-area-inset-bottom,0px); }
+.platform-android .reader-top { height:52px; min-height:52px; padding:0 8px; gap:4px; overflow-x:auto; }
+.platform-android .reader-top button { min-height:38px; white-space:nowrap; }
+.platform-android .reader-book-name, .platform-android .reader-controls, .platform-android .reader-chapter-controls { display:none!important; }
+.platform-android .reader-stage { width:100%!important; max-width:100%!important; padding:18px 18px 44px; overscroll-behavior:contain; touch-action:pan-y; }
+.platform-android .reader-dock { padding:6px 8px 8px; }
+.platform-android .reader-dock-actions { overflow-x:auto; scrollbar-width:none; }
+.platform-android .reader-dock-actions button { flex:none; min-width:58px; min-height:40px; }
+.platform-android .reader-seek-preview { max-height:35dvh; overflow-y:auto; }
+.platform-android .reader-settings,.platform-android .reader-toc,.platform-android .reader-gallery,.platform-android .reader-notes-panel,.platform-android .reader-position-history,.platform-android .reader-search-panel { width:min(92vw,390px); max-height:100%; z-index:8; }
+#yomiMobileNav { display:none; }
+.platform-android #yomiMobileNav { display:flex; position:fixed; inset:auto 0 0; z-index:15; justify-content:space-around; min-height:calc(67px + env(safe-area-inset-bottom,0px)); padding-bottom:env(safe-area-inset-bottom,0px); background:var(--panel); border-top:1px solid var(--line); box-shadow:0 -5px 20px #14281e14; }
+.platform-android #yomiMobileNav button { flex:1; border:0; background:transparent; color:var(--muted); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:2px; padding:7px 4px; font-size:22px; }
+.platform-android #yomiMobileNav button small { font-size:11px; }
+.platform-android #yomiMobileNav button[aria-current=page] { color:var(--accent-strong); font-weight:700; }
+.platform-android .yomi-mobile-pdf { padding:8px 8px 26px!important; overflow:auto; background:#9da5aa!important; }
+.platform-android .yomi-pdf-pages { display:grid; justify-items:center; gap:12px; }
+.platform-android .yomi-pdf-page { position:relative; display:flex; align-items:flex-start; justify-content:center; background:white; width:fit-content; max-width:100%; box-shadow:0 3px 10px #0003; }
+.platform-android .yomi-pdf-page small { position:absolute; bottom:0; right:0; padding:2px 6px; color:#59615d; background:#fff8; font-size:10px; }
+.platform-android .yomi-pdf-page canvas { display:block; max-width:100%; }
+@media(prefers-reduced-motion:reduce) { .platform-android * { animation:none!important; scroll-behavior:auto!important; } }
+
+/* Immersive reading: center tap or H toggles chrome; edge taps keep it hidden. */
+.reader-modal.reader-ui-hidden .reader-top,
+.reader-modal.reader-ui-hidden .reader-dock,
+.reader-modal.reader-ui-hidden .reader-undo-notice {
+  display: none !important;
+}
+.reader-modal.reader-ui-hidden .reader-body { flex: 1; min-height: 0; }
+.platform-android .reader-body { touch-action: pan-y; }
+
+/* Brand: a restrained book-spine monogram, shared with desktop branding. */
+.platform-android .mobile-brand { display:flex; align-items:center; gap:8px; font-size:15px; letter-spacing:-.02em; }
+.yomi-mark-image { width:32px; height:32px; flex:none; object-fit:contain; border-radius:10px; }
+.platform-android .folder-import-modal { padding:12px; }
+.platform-android .folder-import-dialog { max-width:100%; max-height:90dvh; overflow:auto; }
+.platform-android .reader-modal.reader-ui-hidden { padding-top:0; padding-bottom:0; }
+
+
+/* Real viewport layout, including phones with cutouts or gesture navigation. */
+.platform-android .reader-modal {
+  inset:0; width:100%; min-height:100dvh; max-height:100dvh;
+  background:var(--panel); box-sizing:border-box;
+}
+.platform-android .reader-layout,
+.platform-android .reader-body { min-height:0; }
+.platform-android .reader-chapter-title { padding-top:18px; }
+.platform-android .reader-modal.reader-ui-hidden .reader-chapter-title { padding-top:16px; }
+.platform-android .reader-modal.reader-ui-hidden .reader-layout { flex:1; min-height:0; }
+.platform-android .folder-import-dialog {
+  width:100%; padding:16px; max-height:calc(100dvh - 28px); border-radius:20px;
+}
+.platform-android .folder-import-filters { flex-wrap:wrap; align-items:center; }
+.platform-android .folder-import-source { flex-wrap:wrap; }
+.platform-android .folder-file-list { max-height:min(36dvh,360px); }
+.platform-android .folder-file-row { min-height:56px; gap:8px; }
+.platform-android .folder-file-row b { font-size:12px; }
+.platform-android .folder-import-dialog>footer { flex-wrap:wrap; }
+.platform-android .yomi-immersive-toggle {
+  display:flex; align-items:center; gap:10px;
+  margin:16px 8px; font-size:13px; color:var(--text);
+}
+.platform-android .yomi-immersive-toggle input { accent-color:var(--accent-strong); width:18px; height:18px; }

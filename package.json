@@ -1,18 +1,27 @@
 {
   "name": "libra-reader-desktop",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
-  "description": "Libra Reader Windows desktop ebook library",
+  "description": "Yomi Reader shared offline ebook reader for Windows and Android",
   "main": "electron/main.cjs",
-  "author": "Libra Reader",
+  "author": "Yomi Reader contributors",
   "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test ui-prototype/reader/*.test.mjs ui-prototype/library-model.test.mjs electron/*.test.cjs",
+    "test": "node --test ui-prototype/reader/*.test.mjs ui-prototype/library-model.test.mjs ui-prototype/onboarding/*.test.mjs ui-prototype/platform/*.test.mjs ui-prototype/fonts/*.test.mjs electron/*.test.cjs",
     "test:ui": "electron electron/ui-smoke.cjs",
     "test:reader": "node --test ui-prototype/reader/*.test.mjs",
-    "dist:win": "electron-builder --win nsis"
+    "dist:win": "electron-builder --win nsis",
+    "check": "npm run check:syntax && npm test",
+    "check:syntax": "node --check electron/main.cjs && node --check ui-prototype/app.js && node --check ui-prototype/fonts/catalog.js && node --check ui-prototype/fonts/font-manager.js && node --check ui-prototype/reader/reader-controller.js && node --check ui-prototype/reader/reading-interactions.js && node --check ui-prototype/storage/database.js && node --check ui-prototype/platform/mobile-shell.js && node --check ui-prototype/platform/pdf-viewer.js && node --check ui-prototype/library/library-view.js && node --check ui-prototype/home/dashboard-view.js && node --check ui-prototype/analytics/reading-analytics.js && node --check ui-prototype/downloads/task-view.js && node --check ui-prototype/onboarding/onboarding.js && node --check scripts/prepare-android.mjs && node --check scripts/sync-fonts.mjs && node --check scripts/configure-android.mjs && node --check scripts/build-android.mjs",
+    "android:deps": "npm install --prefix mobile --no-package-lock --ignore-scripts",
+    "android:prepare": "node scripts/prepare-android.mjs",
+    "android:apk": "node scripts/build-android.mjs",
+    "fonts:sync": "node scripts/sync-fonts.mjs",
+    "prestart": "npm run fonts:sync",
+    "predist:win": "npm run fonts:sync",
+    "pretest:ui": "npm run fonts:sync"
   },
   "devDependencies": {
     "electron": "45.0.0",
