@@ -20,7 +20,8 @@
     "android:apk": "node scripts/build-android.mjs",
     "fonts:sync": "node scripts/sync-fonts.mjs",
     "prestart": "npm run fonts:sync",
-    "predist:win": "npm run fonts:sync"
+    "predist:win": "npm run fonts:sync",
+    "pretest:ui": "npm run fonts:sync"
   },
   "devDependencies": {
     "electron": "45.0.0",
