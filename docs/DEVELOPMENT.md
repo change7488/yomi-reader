@@ -117,3 +117,5 @@ npm run android:apk          # 打包前自动同步字体 + Android 图标
 
 **第三方许可**：20 款字体来自 <https://github.com/joeseesun/qiaomu-cover-fonts> v1.0.0，原字体设计者与许可详见 `catalog.json` 和下载后的 `fonts/licenses/*.txt`。修改字体来源时必须同步更新 SHA-256、许可证和版权说明。
 
+
+**一致的应用品牌**：构建时将原版 `assets/yomi-reader.png` 同步到 `ui-prototype/assets/yomi-reader.png`，供 Windows 和 Android 首页共同引用；Android Launcher 图标则由 Gradle 配置脚本引用同一原图。SVG 旧占位图不再使用。
