@@ -41,3 +41,18 @@ jobs:
           path: release/Yomi-Reader-Android-arm64-debug.apk
           if-no-files-found: error
           retention-days: 14
+  desktop-regression:
+    runs-on: windows-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+      - name: Check Windows Electron modules
+        run: |
+          npm ci
+          npm run check
+      - name: Run desktop UI smoke tests
+        run: npm run test:ui
