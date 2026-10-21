@@ -24,6 +24,8 @@ jobs:
           distribution: 'temurin'
           java-version: '21'
       - uses: android-actions/setup-android@v3
+        with:
+          packages: platform-tools
       - name: Install Android SDK 36
         run: sdkmanager "platforms;android-36" "platform-tools" "build-tools;36.0.0"
       - name: Install dependencies and verify shared modules
