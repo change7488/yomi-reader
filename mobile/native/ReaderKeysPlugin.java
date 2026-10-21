@@ -2,6 +2,11 @@ package com.change7488.yomireader;
 
 import android.view.KeyEvent;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
+import android.os.Build;
+import android.graphics.Color;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -20,11 +25,45 @@ public class ReaderKeysPlugin extends Plugin {
 
     @PluginMethod
     public void setImmersive(PluginCall call) {
-        final boolean enabled = Boolean.TRUE.equals(call.getBoolean("enabled", false));
+        final boolean immersive = Boolean.TRUE.equals(call.getBoolean("enabled", false));
         getActivity().runOnUiThread(() -> {
-            View decor = getActivity().getWindow().getDecorView();
-            int flags = enabled ? (View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE) : View.SYSTEM_UI_FLAG_VISIBLE;
-            decor.setSystemUiVisibility(flags);
+            final Window window = getActivity().getWindow();
+            final View decor = window.getDecorView();
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+                window.setDecorFitsSystemWindows(!immersive);
+                WindowInsetsController controller = window.getInsetsController();
+                if (controller != null) {
+                    int bars = WindowInsets.Type.statusBars() | WindowInsets.Type.navigationBars();
+                    if (immersive) {
+                        controller.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+                        controller.hide(bars);
+                    } else {
+                        controller.show(bars);
+                        controller.setSystemBarsAppearance(
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS,
+                            WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                        );
+                    }
+                }
+            } else {
+                int flags = immersive
+                    ? View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION |
+                      View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN |
+                      View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+                    : View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR |
+                      (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR : 0);
+                decor.setSystemUiVisibility(flags);
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                android.view.WindowManager.LayoutParams attrs = window.getAttributes();
+                attrs.layoutInDisplayCutoutMode = immersive
+                    ? android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                    : android.view.WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_DEFAULT;
+                window.setAttributes(attrs);
+            }
+            // When back on the shelf, use the app's paper background instead of a black band.
+            window.setStatusBarColor(immersive ? Color.TRANSPARENT : Color.rgb(247, 246, 242));
+            window.setNavigationBarColor(immersive ? Color.TRANSPARENT : Color.rgb(247, 246, 242));
             call.resolve();
         });
     }
