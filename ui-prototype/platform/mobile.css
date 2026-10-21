@@ -53,3 +53,12 @@
 }
 .reader-modal.reader-ui-hidden .reader-body { flex: 1; min-height: 0; }
 .platform-android .reader-body { touch-action: pan-y; }
+
+/* Brand: a restrained book-spine monogram, shared with desktop branding. */
+.platform-android .mobile-brand { display:flex; align-items:center; gap:8px; font-size:15px; letter-spacing:-.02em; }
+.yomi-mark { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:9px; background:var(--accent-strong,#287f62); color:#fff; font:700 18px/1 Georgia,serif; box-shadow:inset -4px 0 #00000014; }
+.platform-android .folder-import-modal { padding:12px; }
+.platform-android .folder-import-dialog { max-width:100%; max-height:90dvh; overflow:auto; }
+.folder-import-choices { display:flex; flex-wrap:wrap; gap:12px; padding:10px 0; align-items:center; }
+.folder-import-choices label { display:flex; align-items:center; gap:6px; font-size:13px; }
+.platform-android .reader-modal.reader-ui-hidden { padding-top:0; padding-bottom:0; }
