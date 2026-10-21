@@ -2,6 +2,22 @@
 
 一个面向 Windows 的本地轻小说阅读器。当前桌面版使用 Electron、HTML、CSS 和 JavaScript；仓库还保留了早期的 Python BookBridge 实验代码。项目仍处于预览阶段。
 
+## 界面预览
+
+首页展示继续阅读进度、书库概览与近期阅读统计；书库支持封面网格、列表和封面大小调整。截图使用虚构的演示书籍，不含个人书库内容。
+
+![Yomi Reader 首页](screenshots/home.png)
+
+![Yomi Reader 本地图书馆](screenshots/library.png)
+
+## 下载 Windows 预览版
+
+前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases/latest) 下载最新版安装程序：
+
+[下载 Yomi Reader Windows 安装程序](https://github.com/change7488/yomi-reader/releases/latest/download/Yomi-Reader-0.2.2-x64-Setup.exe)
+
+运行安装程序并按提示完成安装。预览版面向 Windows x64；尚未进行代码签名，Windows 可能显示发布者验证提示。
+
 ## 运行桌面版
 
 需要 Node.js 和 npm。在仓库根目录运行：
@@ -11,7 +27,7 @@ npm ci
 npm start
 ```
 
-或双击 `启动LibraReader.bat`。当前安装包配置仍沿用早期的 `Libra Reader` 内部名称，以免改变现有用户数据目录；界面名称为 Yomi Reader。
+或双击 `启动LibraReader.bat`。应用程序内部沿用早期的 `Libra Reader` 数据目录标识，以便延续本机已有数据；界面名称为 Yomi Reader。
 
 ## 已实现
 

@@ -23,6 +23,7 @@ body, .main-area { background:var(--bg); color:var(--text); }
 .main-area,.sidebar-collapsed .main-area { margin-left:var(--sidebar); }
 .sidebar, body.light-mode .sidebar { width:var(--sidebar); background:var(--sidebar-surface); border-color:var(--line); padding:24px 12px 16px; }
 .sidebar-collapsed .sidebar { padding-left:8px; padding-right:8px; }
+.sidebar-collapsed .folder-nav-empty { display:none; }
 .sidebar-collapsed .nav-item { width:48px; height:44px; }
 .nav-item, body.light-mode .nav-item { color:var(--muted); border-radius:14px; height:44px; transition:background var(--motion-fast),color var(--motion-fast); }
 .nav-item:hover, body.light-mode .nav-item:hover { background:var(--surface-soft); color:var(--text); }

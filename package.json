@@ -1,11 +1,11 @@
 {
   "name": "libra-reader-desktop",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "type": "module",
   "description": "Libra Reader Windows desktop ebook library",
   "main": "electron/main.cjs",
   "author": "Libra Reader",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "private": true,
   "scripts": {
     "start": "electron .",
@@ -34,7 +34,7 @@
         "nsis"
       ],
       "icon": "assets/libra.ico",
-      "artifactName": "Libra-Reader-${version}-${arch}-Setup.${ext}"
+      "artifactName": "Yomi-Reader-${version}-${arch}-Setup.${ext}"
     },
     "nsis": {
       "oneClick": false,
