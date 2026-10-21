@@ -1,3 +1,4 @@
+import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
 import { createLibraryView } from './library/library-view.js';
 import { createDashboardView } from './home/dashboard-view.js';
 import { createReadingAnalytics } from './analytics/reading-analytics.js';
@@ -47,56 +48,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     getReaderFormat: () => state.readerBook?.ext || null
   });
 
-  function openDB() {
-    return new Promise((resolve, reject) => {
-      const req = indexedDB.open(DB_NAME, 3);
-      req.onupgradeneeded = event => {
-        const db = req.result;
-        if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('tasks')) db.createObjectStore('tasks', { keyPath: 'id' });
-        if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
-        if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
-        let readingStates;
-        if (!db.objectStoreNames.contains('readingStates')) readingStates = db.createObjectStore('readingStates', { keyPath: 'bookId' });
-        else readingStates = event.currentTarget.transaction.objectStore('readingStates');
-        if (!readingStates.indexNames.contains('byUpdatedAt')) readingStates.createIndex('byUpdatedAt', 'updatedAt', { unique: false });
-        let folderBooks;
-        if (!db.objectStoreNames.contains('folderBooks')) folderBooks = db.createObjectStore('folderBooks', { keyPath: ['folderId', 'bookId'] });
-        else folderBooks = event.currentTarget.transaction.objectStore('folderBooks');
-        if (!folderBooks.indexNames.contains('byFolder')) folderBooks.createIndex('byFolder', 'folderId', { unique: false });
-        if (!folderBooks.indexNames.contains('byBook')) folderBooks.createIndex('byBook', 'bookId', { unique: false });
-        if (event.oldVersion < 2) {
-          const cursorRequest = event.currentTarget.transaction.objectStore('books').openCursor();
-          cursorRequest.onsuccess = () => {
-            const cursor = cursorRequest.result; if (!cursor) return;
-            const book = cursor.value;
-            if (!book.storageMode) { book.storageMode = book.nativePath ? 'managed' : 'indexeddb'; cursor.update(book); }
-            cursor.continue();
-          };
-        }
-        if (event.oldVersion < 3) {
-          const cursorRequest = event.currentTarget.transaction.objectStore('books').openCursor();
-          cursorRequest.onsuccess = () => {
-            const cursor = cursorRequest.result; if (!cursor) return;
-            const book = cursor.value;
-            if (book.readingState) readingStates.put({ bookId: book.id, ...book.readingState });
-            cursor.continue();
-          };
-        }
-      };
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-  function dbRequest(store, mode, action) {
-    return new Promise((resolve, reject) => {
-      const tx = state.db.transaction(store, mode), req = action(tx.objectStore(store));
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-  }
-  const all = (store) => dbRequest(store, 'readonly', (s) => s.getAll());
-  const put = (store, item) => dbRequest(store, 'readwrite', (s) => s.put(item));
+  const { dbRequest, all, put } = createDatabaseQueries(() => state.db);
   function saveFolderLinks(nextLinks) {
     return new Promise((resolve, reject) => {
       const tx = state.db.transaction('folderBooks', 'readwrite'), store = tx.objectStore('folderBooks');
@@ -930,6 +882,113 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     } catch (e) { console.warn('Folder scan:', e); }
   }
   function beginScan() { if (state.scanTimer) clearInterval(state.scanTimer); state.scanning = true; scanFolder(); state.scanTimer = setInterval(scanFolder, 3500); }
+  // Reader-specific interactions are isolated from the library/shell bindings.
+  function bindReaderEvents() {
+    $('readerBack').onclick = closeReader;
+    $('readerFullscreenToggle').onclick = toggleReaderFullscreen;
+    $('readerTocToggle').onclick = () => $('readerToc').classList.toggle('open'); $('readerTocClose').onclick = () => $('readerToc').classList.remove('open');
+    $('readerGalleryToggle').onclick = () => $('readerGallery').classList.toggle('open'); $('readerGalleryClose').onclick = () => $('readerGallery').classList.remove('open');
+    $('readerSettingsToggle').onclick = () => $('readerSettings').classList.toggle('open'); $('readerSettingsClose').onclick = () => $('readerSettings').classList.remove('open');
+    $('readerBookmarkAdd').onclick = addReaderBookmark; $('readerBookmarksClose').onclick = () => $('readerBookmarks').classList.remove('open');
+    $('readerNotesClose').onclick = () => $('readerNotesPanel').classList.remove('open');
+    $('readerDockSearch').onclick = () => { $('readerSearchPanel').classList.toggle('open'); if ($('readerSearchPanel').classList.contains('open')) $('readerSearchInput').focus(); };
+    $('readerSearchClose').onclick = () => $('readerSearchPanel').classList.remove('open');
+    $('readerSearchInput').oninput = () => { clearTimeout(state.readerSearchTimer); state.readerSearchTimer = setTimeout(() => renderReaderSearch($('readerSearchInput').value), 180); };
+    $('readerSearchResults').onclick = e => { const button = e.target.closest('[data-reader-search-result]'); if (!button) return; const result = state.readerSearchResults[Number(button.dataset.readerSearchResult)]; if (!result) return; $('readerSearchPanel').classList.remove('open'); navigateReaderToAnchor(result.anchor, '搜索'); };
+    $('readerNoteSave').onclick = saveReaderNote;
+    $('readerNotesList').onclick = async e => {
+      const jump = e.target.closest('[data-note-jump]');
+      if (jump) {
+        const note = state.readerBook?.notes?.[Number(jump.dataset.noteJump)]; if (!note) return;
+        const anchor = note.anchor || { fileHash: state.readerBook.hash, chapterIndex: note.chapterIndex, chapterId: state.readerChapters[note.chapterIndex]?.id, chapterTitle: note.chapterTitle, blockIndex: 0, charOffset: 0, chapterScrollRatio: 0, progress: note.chapterIndex / Math.max(1, state.readerChapters.length) * 100 };
+        $('readerNotesPanel').classList.remove('open'); await navigateReaderToAnchor(anchor, '笔记'); return;
+      }
+      const button = e.target.closest('[data-note-delete]'); if (!button) return;
+      state.readerBook.notes.splice(Number(button.dataset.noteDelete), 1); await put('books', state.readerBook); renderReaderNotes();
+    };
+    $('readerBookmarkItems').onclick = async e => {
+      const remove = e.target.closest('[data-bookmark-delete]');
+      if (remove) { state.readerBook.bookmarks.splice(Number(remove.dataset.bookmarkDelete), 1); await put('books', state.readerBook); renderReaderBookmarks(); return; }
+      const jump = e.target.closest('[data-bookmark-index]');
+      if (jump) { const mark = state.readerBook.bookmarks[Number(jump.dataset.bookmarkIndex)]; if (mark) { const anchor = mark.anchor || { fileHash: state.readerBook.hash, chapterIndex: mark.chapterIndex, chapterId: state.readerChapters[mark.chapterIndex]?.id, chapterTitle: mark.chapterTitle, chapterScrollRatio: Math.min(1, (mark.scroll || 0) / Math.max(1, $('readerStage').scrollHeight - $('readerStage').clientHeight)), progress: state.readerBook.progress || 0 }; $('readerBookmarks').classList.remove('open'); navigateReaderToAnchor(anchor, '书签'); } }
+    };
+    $('readerFontRange').oninput = e => updateReaderStyle('fontSize', Number(e.target.value));
+    $('readerLineRange').oninput = e => updateReaderStyle('lineHeight', Number(e.target.value) / 10);
+    $('readerWidthRange').oninput = e => updateReaderStyle('width', Number(e.target.value));
+    $('readerMarginRange').oninput = e => updateReaderStyle('sideMargin', Number(e.target.value));
+    $('readerWidthFillBtn').onclick = async () => {
+      const book = state.readerBook; if (!book) return;
+      const width = Math.max(520, Math.floor((window.innerWidth - 24) / 20) * 20);
+      book.readerStyle = { ...currentReaderStyle(), width, sideMargin: 0 };
+      await reflowReaderPreservingPosition(applyReaderStyle); await put('books', book);
+    };
+    $('readerIndentToggle').onchange = e => updateReaderStyle('indent', e.target.checked);
+    $('readerThemeSelect').onchange = e => updateReaderStyle('theme', e.target.value);
+    $('readerTurnMode').onchange = e => updateReaderStyle('turnMode', e.target.value);
+    $('readerGalleryItems').onclick = e => { const button = e.target.closest('[data-gallery-image]'); if (button) showReaderImage(Number(button.dataset.galleryImage)); };
+    $('readerStage').onclick = e => { const image = e.target.closest('[data-reader-image]'); if (image) showReaderImage(Number(image.dataset.readerImage)); };
+    $('readerStage').addEventListener('wheel', e => {
+      markReaderActivity();
+      if (currentReaderStyle().turnMode !== 'page' || !state.readerChapters.length) return;
+      e.preventDefault(); state.wheelDelta += e.deltaY;
+      clearTimeout(state.wheelTimer);
+      state.wheelTimer = setTimeout(() => { const delta = state.wheelDelta; state.wheelDelta = 0; if (Math.abs(delta) > 24) moveReaderPage(delta > 0 ? 1 : -1); }, 90);
+    }, { passive: false });
+    $('txtPreviewBtn').onclick = previewTextChapters; $('txtApplyBtn').onclick = applyTextChapterSettings;
+    $('readerImageClose').onclick = () => $('readerLightbox').classList.remove('open');
+    $('readerImageScaleToggle').onclick = () => { const original = $('readerLightbox').classList.toggle('original-size'); $('readerImageScaleToggle').textContent = original ? '适应窗口' : '原始尺寸'; };
+    $('readerImageLocate').onclick = () => {
+      const image = state.readerImages[state.activeImageIndex]; if (!image) return;
+      renderChapter(image.chapterIndex); $('readerLightbox').classList.remove('open');
+      requestAnimationFrame(() => { $('readerStage').querySelector(`[data-reader-image="${state.activeImageIndex}"]`)?.scrollIntoView({ block: 'center' }); persistReaderPosition(); });
+    };
+    $('readerImagePrev').onclick = () => showReaderImage(state.activeImageIndex - 1); $('readerImageNext').onclick = () => showReaderImage(state.activeImageIndex + 1);
+    $('readerDockToc').onclick = () => $('readerToc').classList.toggle('open');
+    $('readerDockNote').onclick = addReaderNote;
+    $('readerDockBookmark').onclick = addReaderBookmark;
+    const themePicker = $('readerThemePicker');
+    const closeThemePicker = () => { themePicker.classList.remove('open'); $('readerDockTheme').setAttribute('aria-expanded', 'false'); $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
+    $('readerDockTheme').onclick = () => { const open = themePicker.classList.toggle('open'); $('readerDockTheme').setAttribute('aria-expanded', String(open)); if (!open) $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
+    themePicker.onpointerover = e => { const option = e.target.closest('[data-reader-theme-option]'); if (option) $('readerModal').dataset.readerTheme = option.dataset.readerThemeOption; };
+    themePicker.onpointerleave = () => { $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
+    themePicker.onfocusin = e => { const option = e.target.closest('[data-reader-theme-option]'); if (option) $('readerModal').dataset.readerTheme = option.dataset.readerThemeOption; };
+    themePicker.onfocusout = e => { if (!themePicker.contains(e.relatedTarget)) $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
+    themePicker.onclick = async e => { const option = e.target.closest('[data-reader-theme-option]'); if (!option) return; await updateReaderStyle('theme', option.dataset.readerThemeOption); closeThemePicker(); toast(`已应用“${option.dataset.themeName}”主题。`); };
+    document.addEventListener('keydown', e => { if (e.key === 'Escape' && themePicker.classList.contains('open')) closeThemePicker(); });
+    $('readerDockSettings').onclick = () => $('readerSettings').classList.toggle('open');
+    $('readerDockSpeak').onclick = toggleReaderSpeech;
+    $('readerProgressRange').oninput = e => { const percent = Number(e.target.value) / 10; e.target.style.setProperty('--progress', `${percent}%`); renderSeekPreview(Number(e.target.value)); };
+    $('readerProgressRange').onchange = e => renderSeekPreview(Number(e.target.value));
+    $('readerSeekCancel').onclick = () => { state.pendingSeekValue = null; $('readerSeekPreview').classList.add('hidden'); updateReaderProgressUI(); };
+    $('readerSeekConfirm').onclick = confirmProgressSeek;
+    $('readerPositionBack').onclick = navigateReaderBack; $('readerPositionForward').onclick = navigateReaderForward;
+    $('readerPositionHistoryToggle').onclick = () => { renderReaderPositionHistory(); $('readerPositionHistory').classList.toggle('open'); };
+    $('readerPositionHistoryClose').onclick = () => $('readerPositionHistory').classList.remove('open');
+    $('readerPositionHistoryItems').onclick = e => {
+      const entryButton = e.target.closest('[data-position-entry]');
+      if (entryButton) { const entryId = entryButton.dataset.positionEntry; queueReaderNavigation(async () => { const book = state.readerBook; if (!book) return; const entry = state.navigationService.export(book.id).entries.find(item => item.id === entryId); const target = state.navigationService.restoreEntry(book.id, entry, captureReaderAnchor()); if (target) { await restoreReaderAnchor(target); await persistReaderPosition(true); showReaderUndoNotice(entry?.sourceAnchor, target); renderReaderPositionHistory(); } }); return; }
+      const sessionButton = e.target.closest('[data-session-start],[data-session-end]'); if (!sessionButton) return;
+      const sessionId = sessionButton.dataset.sessionStart || sessionButton.dataset.sessionEnd, useStart = !!sessionButton.dataset.sessionStart;
+      queueReaderNavigation(async () => {
+        const book = state.readerBook; if (!book) return;
+        const session = state.navigationService.export(book.id).sessions.find(item => item.id === sessionId), target = useStart ? session?.startAnchor : session?.endAnchor;
+        if (target) { const from = captureReaderAnchor(); state.navigationService.restoreEntry(book.id, { targetAnchor: target }, from); await restoreReaderAnchor(target); await persistReaderPosition(true); showReaderUndoNotice(from, target); renderReaderPositionHistory(); }
+      });
+    };
+    $('readerProgressPrev').onclick = () => moveReaderPage(-1);
+    $('readerProgressNext').onclick = () => moveReaderPage(1);
+    $('readerPrev').onclick = () => { if (state.readerChapterIndex > 0) { animateReaderTurn(-1); renderChapter(state.readerChapterIndex - 1); persistReaderPosition(); } };
+    $('readerNext').onclick = () => { if (state.readerChapterIndex < state.readerChapters.length - 1) { animateReaderTurn(1); renderChapter(state.readerChapterIndex + 1); persistReaderPosition(); } };
+    $('readerTocItems').onclick = e => {
+      const item = e.target.closest('[data-chapter-index]'); if (!item) return;
+      const target = Number(item.dataset.chapterIndex), chapter = state.readerChapters[target]; if (!chapter) return;
+      animateReaderTurn(target >= state.readerChapterIndex ? 1 : -1);
+      navigateReaderToAnchor({ fileHash: state.readerBook?.hash || '', chapterId: chapter.id, chapterIndex: target, chapterTitle: chapter.title, blockIndex: 0, charOffset: 0, sourceOffset: chapter.blocks?.find(block => Number.isFinite(block.sourceOffset))?.sourceOffset ?? null, chapterScrollRatio: 0, progress: target / Math.max(1, state.readerChapters.length) * 100 }, '目录');
+    };
+    $('fontDown').onclick = () => updateReaderStyle('fontSize', Math.max(14, Number(currentReaderStyle().fontSize) - 1));
+    $('fontUp').onclick = () => updateReaderStyle('fontSize', Math.min(30, Number(currentReaderStyle().fontSize) + 1));
+  }
+
   function initEvents() {
     installReaderControls();
     installAnalyticsSection();
@@ -1060,109 +1119,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     $('profileBtn').onclick = () => toast('当前为离线本地模式，书籍数据保存在此浏览器。');
     $('goSiteBtn').onclick = openOnline; $('siteUrl').onkeydown = e => { if (e.key === 'Enter') openOnline(); }; $('embedSiteBtn').onclick = openEmbedded;
     $('siteReload').onclick = () => { const f = $('siteFrame'); if (!f.classList.contains('hidden')) f.src = f.src; else openOnline(); };
-    $('readerBack').onclick = closeReader;
-    $('readerFullscreenToggle').onclick = toggleReaderFullscreen;
-    $('readerTocToggle').onclick = () => $('readerToc').classList.toggle('open'); $('readerTocClose').onclick = () => $('readerToc').classList.remove('open');
-    $('readerGalleryToggle').onclick = () => $('readerGallery').classList.toggle('open'); $('readerGalleryClose').onclick = () => $('readerGallery').classList.remove('open');
-    $('readerSettingsToggle').onclick = () => $('readerSettings').classList.toggle('open'); $('readerSettingsClose').onclick = () => $('readerSettings').classList.remove('open');
-    $('readerBookmarkAdd').onclick = addReaderBookmark; $('readerBookmarksClose').onclick = () => $('readerBookmarks').classList.remove('open');
-    $('readerNotesClose').onclick = () => $('readerNotesPanel').classList.remove('open');
-    $('readerDockSearch').onclick = () => { $('readerSearchPanel').classList.toggle('open'); if ($('readerSearchPanel').classList.contains('open')) $('readerSearchInput').focus(); };
-    $('readerSearchClose').onclick = () => $('readerSearchPanel').classList.remove('open');
-    $('readerSearchInput').oninput = () => { clearTimeout(state.readerSearchTimer); state.readerSearchTimer = setTimeout(() => renderReaderSearch($('readerSearchInput').value), 180); };
-    $('readerSearchResults').onclick = e => { const button = e.target.closest('[data-reader-search-result]'); if (!button) return; const result = state.readerSearchResults[Number(button.dataset.readerSearchResult)]; if (!result) return; $('readerSearchPanel').classList.remove('open'); navigateReaderToAnchor(result.anchor, '搜索'); };
-    $('readerNoteSave').onclick = saveReaderNote;
-    $('readerNotesList').onclick = async e => {
-      const jump = e.target.closest('[data-note-jump]');
-      if (jump) {
-        const note = state.readerBook?.notes?.[Number(jump.dataset.noteJump)]; if (!note) return;
-        const anchor = note.anchor || { fileHash: state.readerBook.hash, chapterIndex: note.chapterIndex, chapterId: state.readerChapters[note.chapterIndex]?.id, chapterTitle: note.chapterTitle, blockIndex: 0, charOffset: 0, chapterScrollRatio: 0, progress: note.chapterIndex / Math.max(1, state.readerChapters.length) * 100 };
-        $('readerNotesPanel').classList.remove('open'); await navigateReaderToAnchor(anchor, '笔记'); return;
-      }
-      const button = e.target.closest('[data-note-delete]'); if (!button) return;
-      state.readerBook.notes.splice(Number(button.dataset.noteDelete), 1); await put('books', state.readerBook); renderReaderNotes();
-    };
-    $('readerBookmarkItems').onclick = async e => {
-      const remove = e.target.closest('[data-bookmark-delete]');
-      if (remove) { state.readerBook.bookmarks.splice(Number(remove.dataset.bookmarkDelete), 1); await put('books', state.readerBook); renderReaderBookmarks(); return; }
-      const jump = e.target.closest('[data-bookmark-index]');
-      if (jump) { const mark = state.readerBook.bookmarks[Number(jump.dataset.bookmarkIndex)]; if (mark) { const anchor = mark.anchor || { fileHash: state.readerBook.hash, chapterIndex: mark.chapterIndex, chapterId: state.readerChapters[mark.chapterIndex]?.id, chapterTitle: mark.chapterTitle, chapterScrollRatio: Math.min(1, (mark.scroll || 0) / Math.max(1, $('readerStage').scrollHeight - $('readerStage').clientHeight)), progress: state.readerBook.progress || 0 }; $('readerBookmarks').classList.remove('open'); navigateReaderToAnchor(anchor, '书签'); } }
-    };
-    $('readerFontRange').oninput = e => updateReaderStyle('fontSize', Number(e.target.value));
-    $('readerLineRange').oninput = e => updateReaderStyle('lineHeight', Number(e.target.value) / 10);
-    $('readerWidthRange').oninput = e => updateReaderStyle('width', Number(e.target.value));
-    $('readerMarginRange').oninput = e => updateReaderStyle('sideMargin', Number(e.target.value));
-    $('readerWidthFillBtn').onclick = async () => {
-      const book = state.readerBook; if (!book) return;
-      const width = Math.max(520, Math.floor((window.innerWidth - 24) / 20) * 20);
-      book.readerStyle = { ...currentReaderStyle(), width, sideMargin: 0 };
-      await reflowReaderPreservingPosition(applyReaderStyle); await put('books', book);
-    };
-    $('readerIndentToggle').onchange = e => updateReaderStyle('indent', e.target.checked);
-    $('readerThemeSelect').onchange = e => updateReaderStyle('theme', e.target.value);
-    $('readerTurnMode').onchange = e => updateReaderStyle('turnMode', e.target.value);
-    $('readerGalleryItems').onclick = e => { const button = e.target.closest('[data-gallery-image]'); if (button) showReaderImage(Number(button.dataset.galleryImage)); };
-    $('readerStage').onclick = e => { const image = e.target.closest('[data-reader-image]'); if (image) showReaderImage(Number(image.dataset.readerImage)); };
-    $('readerStage').addEventListener('wheel', e => {
-      markReaderActivity();
-      if (currentReaderStyle().turnMode !== 'page' || !state.readerChapters.length) return;
-      e.preventDefault(); state.wheelDelta += e.deltaY;
-      clearTimeout(state.wheelTimer);
-      state.wheelTimer = setTimeout(() => { const delta = state.wheelDelta; state.wheelDelta = 0; if (Math.abs(delta) > 24) moveReaderPage(delta > 0 ? 1 : -1); }, 90);
-    }, { passive: false });
-    $('txtPreviewBtn').onclick = previewTextChapters; $('txtApplyBtn').onclick = applyTextChapterSettings;
-    $('readerImageClose').onclick = () => $('readerLightbox').classList.remove('open');
-    $('readerImageScaleToggle').onclick = () => { const original = $('readerLightbox').classList.toggle('original-size'); $('readerImageScaleToggle').textContent = original ? '适应窗口' : '原始尺寸'; };
-    $('readerImageLocate').onclick = () => {
-      const image = state.readerImages[state.activeImageIndex]; if (!image) return;
-      renderChapter(image.chapterIndex); $('readerLightbox').classList.remove('open');
-      requestAnimationFrame(() => { $('readerStage').querySelector(`[data-reader-image="${state.activeImageIndex}"]`)?.scrollIntoView({ block: 'center' }); persistReaderPosition(); });
-    };
-    $('readerImagePrev').onclick = () => showReaderImage(state.activeImageIndex - 1); $('readerImageNext').onclick = () => showReaderImage(state.activeImageIndex + 1);
-    $('readerDockToc').onclick = () => $('readerToc').classList.toggle('open');
-    $('readerDockNote').onclick = addReaderNote;
-    $('readerDockBookmark').onclick = addReaderBookmark;
-    const themePicker = $('readerThemePicker');
-    const closeThemePicker = () => { themePicker.classList.remove('open'); $('readerDockTheme').setAttribute('aria-expanded', 'false'); $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
-    $('readerDockTheme').onclick = () => { const open = themePicker.classList.toggle('open'); $('readerDockTheme').setAttribute('aria-expanded', String(open)); if (!open) $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
-    themePicker.onpointerover = e => { const option = e.target.closest('[data-reader-theme-option]'); if (option) $('readerModal').dataset.readerTheme = option.dataset.readerThemeOption; };
-    themePicker.onpointerleave = () => { $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
-    themePicker.onfocusin = e => { const option = e.target.closest('[data-reader-theme-option]'); if (option) $('readerModal').dataset.readerTheme = option.dataset.readerThemeOption; };
-    themePicker.onfocusout = e => { if (!themePicker.contains(e.relatedTarget)) $('readerModal').dataset.readerTheme = currentReaderStyle().theme || 'paper'; };
-    themePicker.onclick = async e => { const option = e.target.closest('[data-reader-theme-option]'); if (!option) return; await updateReaderStyle('theme', option.dataset.readerThemeOption); closeThemePicker(); toast(`已应用“${option.dataset.themeName}”主题。`); };
-    document.addEventListener('keydown', e => { if (e.key === 'Escape' && themePicker.classList.contains('open')) closeThemePicker(); });
-    $('readerDockSettings').onclick = () => $('readerSettings').classList.toggle('open');
-    $('readerDockSpeak').onclick = toggleReaderSpeech;
-    $('readerProgressRange').oninput = e => { const percent = Number(e.target.value) / 10; e.target.style.setProperty('--progress', `${percent}%`); renderSeekPreview(Number(e.target.value)); };
-    $('readerProgressRange').onchange = e => renderSeekPreview(Number(e.target.value));
-    $('readerSeekCancel').onclick = () => { state.pendingSeekValue = null; $('readerSeekPreview').classList.add('hidden'); updateReaderProgressUI(); };
-    $('readerSeekConfirm').onclick = confirmProgressSeek;
-    $('readerPositionBack').onclick = navigateReaderBack; $('readerPositionForward').onclick = navigateReaderForward;
-    $('readerPositionHistoryToggle').onclick = () => { renderReaderPositionHistory(); $('readerPositionHistory').classList.toggle('open'); };
-    $('readerPositionHistoryClose').onclick = () => $('readerPositionHistory').classList.remove('open');
-    $('readerPositionHistoryItems').onclick = e => {
-      const entryButton = e.target.closest('[data-position-entry]');
-      if (entryButton) { const entryId = entryButton.dataset.positionEntry; queueReaderNavigation(async () => { const book = state.readerBook; if (!book) return; const entry = state.navigationService.export(book.id).entries.find(item => item.id === entryId); const target = state.navigationService.restoreEntry(book.id, entry, captureReaderAnchor()); if (target) { await restoreReaderAnchor(target); await persistReaderPosition(true); showReaderUndoNotice(entry?.sourceAnchor, target); renderReaderPositionHistory(); } }); return; }
-      const sessionButton = e.target.closest('[data-session-start],[data-session-end]'); if (!sessionButton) return;
-      const sessionId = sessionButton.dataset.sessionStart || sessionButton.dataset.sessionEnd, useStart = !!sessionButton.dataset.sessionStart;
-      queueReaderNavigation(async () => {
-        const book = state.readerBook; if (!book) return;
-        const session = state.navigationService.export(book.id).sessions.find(item => item.id === sessionId), target = useStart ? session?.startAnchor : session?.endAnchor;
-        if (target) { const from = captureReaderAnchor(); state.navigationService.restoreEntry(book.id, { targetAnchor: target }, from); await restoreReaderAnchor(target); await persistReaderPosition(true); showReaderUndoNotice(from, target); renderReaderPositionHistory(); }
-      });
-    };
-    $('readerProgressPrev').onclick = () => moveReaderPage(-1);
-    $('readerProgressNext').onclick = () => moveReaderPage(1);
-    $('readerPrev').onclick = () => { if (state.readerChapterIndex > 0) { animateReaderTurn(-1); renderChapter(state.readerChapterIndex - 1); persistReaderPosition(); } };
-    $('readerNext').onclick = () => { if (state.readerChapterIndex < state.readerChapters.length - 1) { animateReaderTurn(1); renderChapter(state.readerChapterIndex + 1); persistReaderPosition(); } };
-    $('readerTocItems').onclick = e => {
-      const item = e.target.closest('[data-chapter-index]'); if (!item) return;
-      const target = Number(item.dataset.chapterIndex), chapter = state.readerChapters[target]; if (!chapter) return;
-      animateReaderTurn(target >= state.readerChapterIndex ? 1 : -1);
-      navigateReaderToAnchor({ fileHash: state.readerBook?.hash || '', chapterId: chapter.id, chapterIndex: target, chapterTitle: chapter.title, blockIndex: 0, charOffset: 0, sourceOffset: chapter.blocks?.find(block => Number.isFinite(block.sourceOffset))?.sourceOffset ?? null, chapterScrollRatio: 0, progress: target / Math.max(1, state.readerChapters.length) * 100 }, '目录');
-    };
-    $('fontDown').onclick = () => updateReaderStyle('fontSize', Math.max(14, Number(currentReaderStyle().fontSize) - 1));
-    $('fontUp').onclick = () => updateReaderStyle('fontSize', Math.min(30, Number(currentReaderStyle().fontSize) + 1));
+    bindReaderEvents();
     const zone = $('dropZone'); zone.ondragover = e => { e.preventDefault(); zone.classList.add('dragging'); }; zone.ondragleave = () => zone.classList.remove('dragging'); zone.ondrop = e => { e.preventDefault(); zone.classList.remove('dragging'); importFiles(e.dataTransfer.files, '拖放导入'); };
     document.addEventListener('dragover', e => e.preventDefault()); document.addEventListener('drop', e => { if (!e.target.closest('#dropZone')) { e.preventDefault(); if (e.dataTransfer.files.length) importFiles(e.dataTransfer.files, '拖放导入'); } });
     window.addEventListener('resize', () => { if (state.readerBook && !$('readerModal').classList.contains('hidden')) reflowReaderPreservingPosition(applyReaderStyle).catch(error => console.warn('窗口缩放后恢复阅读位置失败', error)); });
@@ -1201,7 +1158,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
   }
   async function init() {
     try {
-      state.db = await openDB();
+      state.db = await openLibraryDatabase(DB_NAME);
       const [books, tasks, folders, folderBooks, readingStates] = await Promise.all([all('books'), all('tasks'), all('folders'), all('folderBooks'), all('readingStates')]);
       state.books = books; state.tasks = tasks; state.folders = folders; state.folderBooks = folderBooks;
       state.readingStates = new Map(readingStates.map(item => [item.bookId, item]));
