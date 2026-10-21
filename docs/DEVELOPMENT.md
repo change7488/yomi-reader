@@ -17,6 +17,7 @@ ui-prototype/
   platform/          Android 触摸、布局和 PDF 适配
   styles/            按功能划分的有序 CSS
 electron/            Windows 原生文件管理与下载监控
+mobile/              薄 Android Capacitor 外壳与独立原生依赖
 scripts/             Android 网页打包和 Gradle 构建脚本
 .github/workflows/   自动打包 APK
 ```
@@ -41,7 +42,7 @@ npm ci
 npm run android:apk
 ```
 
-命令会自动准备固定版本的 Capacitor 8、Android 插件及 PDF.js，复制共享网页资源到 `dist/android`，初始化/同步 `android` 工程并运行 Gradle。结果：
+命令会安装 `mobile/package.json` 中固定版本的 Capacitor 8、Android App 插件及 PDF.js，复制共享网页资源到 `dist/android`，初始化/同步 `mobile/android` 工程并运行 Gradle。结果：
 
 `release/Yomi-Reader-Android-arm64-debug.apk`
 
