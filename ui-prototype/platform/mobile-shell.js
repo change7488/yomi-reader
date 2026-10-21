@@ -49,6 +49,11 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   stage.addEventListener('touchstart', onStart, { passive: true });
   stage.addEventListener('touchend', onEnd, { passive: true });
   const onBack = () => {
+    const folderDialog = document.getElementById('folderImportModal');
+    if (folderDialog && !folderDialog.classList.contains('hidden')) {
+      folderDialog.classList.add('hidden');
+      return;
+    }
     const tutorial = document.querySelector('.yomi-guide-layer');
     if (tutorial) {
       const dismiss = tutorial.querySelector('[data-guide-close],[data-guide-skip],[data-guide-complete]');
@@ -66,10 +71,22 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   // Hardware volume keys are intercepted by a small native Capacitor plugin only while reading.
   // On the bookshelf the buttons retain their normal system-volume behavior.
   const readerKeys = window.Capacitor?.Plugins?.ReaderKeys;
+  const immersivePreference = 'yomi-immersive-bars';
+  const immersiveLabel = document.createElement('label');
+  immersiveLabel.className = 'yomi-immersive-toggle';
+  immersiveLabel.innerHTML = '<input id="yomiImmersiveToggle" type="checkbox"> 沉浸阅读：隐藏系统状态栏和底部导航条';
+  document.getElementById('readerSettings')?.append(immersiveLabel);
+  const immersiveCheckbox = immersiveLabel.querySelector('input');
+  immersiveCheckbox.checked = localStorage.getItem(immersivePreference) !== '0';
+  immersiveCheckbox.onchange = () => {
+    localStorage.setItem(immersivePreference, immersiveCheckbox.checked ? '1' : '0');
+    readerKeys?.setImmersive?.({ enabled: readerIsOpen() && immersiveCheckbox.checked })
+      ?.catch?.(error => console.warn('切换系统状态栏失败', error));
+  };
   const setNativeKeys = event => {
     readerKeys?.setEnabled?.({ enabled: Boolean(event.detail?.active) })
       ?.catch?.(error => console.warn('切换音量键翻页失败', error));
-    readerKeys?.setImmersive?.({ enabled: Boolean(event.detail?.active) })
+    readerKeys?.setImmersive?.({ enabled: Boolean(event.detail?.active) && immersiveCheckbox.checked })
       ?.catch?.(error => console.warn('沉浸式状态栏切换失败', error));
   };
   const onVolumeTurn = event => {
@@ -102,6 +119,7 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
     stage.removeEventListener('touchstart', onStart);
     stage.removeEventListener('touchend', onEnd);
     nativeListener?.remove?.();
+    immersiveLabel.remove();
     nav.remove();
     document.body.classList.remove('platform-android');
   };
