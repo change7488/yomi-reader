@@ -1,3 +1,7 @@
+import { createLibraryView } from './library/library-view.js';
+import { createDashboardView } from './home/dashboard-view.js';
+import { createReadingAnalytics } from './analytics/reading-analytics.js';
+import { createTaskView } from './downloads/task-view.js';
 import { parseReaderDocument, readBookMetadata, validateBookFile } from './reader/index.js';
 import { createOnboarding } from './onboarding/onboarding.js';
 import { addFolderLinks, deleteBookEntity, deleteFolderTree, removeFolderLinks } from './library-model.js';
@@ -309,112 +313,12 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     await addTask(task); render();
   }
 
-  const demos = [
-    { id: 'demo-1', title: '夜航西飞', author: '柏瑞尔·马卡姆', ext: 'EPUB', progress: 65, hue: '#b78b57', demo: true },
-    { id: 'demo-2', title: '挪威的森林', author: '村上春树', ext: 'EPUB', progress: 0, hue: '#9fa79e', demo: true },
-    { id: 'demo-3', title: '人间失格', author: '太宰治', ext: 'PDF', progress: 32, hue: '#397e8a', demo: true }
-  ];
-  function booksForView() {
-    let books = state.books.length ? [...state.books] : demos.map(x => ({ ...x }));
-    if (state.route === 'favorites') books = books.filter(b => b.favorite);
-    if (state.route === 'history') books = books.filter(b => (b.lastRead || 0) > 0 || b.progress > 0);
-    const selectedFolder = folderRouteId();
-    if (selectedFolder) { const ids = new Set(getFolderBooks(selectedFolder).map(link => link.bookId)); books = books.filter(book => ids.has(book.id)); }
-    if (state.filter === 'reading') books = books.filter(b => b.progress > 0 && b.progress < 100);
-    if (state.filter === 'unread') books = books.filter(b => !b.progress);
-    if (state.query) { const q = state.query.toLowerCase(); books = books.filter(b => `${b.title} ${b.author} ${b.name}`.toLowerCase().includes(q)); }
-    books.sort((a, b) => state.sortRecent ? (b.addedAt || 0) - (a.addedAt || 0) : a.title.localeCompare(b.title, 'zh-CN'));
-    return books;
-  }
-  const coverUrls = new WeakMap();
-  function coverSrc(book) {
-    if (!book.coverBlob) return svgCover(book.title, book.author, book.hue || '#a8d7bf');
-    if (!coverUrls.has(book)) coverUrls.set(book, URL.createObjectURL(book.coverBlob));
-    return coverUrls.get(book);
-  }
-  function renderBooks() {
-    const books = booksForView(); $('bookGrid').innerHTML = '';
-    $('bookGrid').classList.toggle('list-mode', !!state.listMode);
-    for (const book of books) {
-      const card = document.createElement('article'); card.className = 'book-card'; card.draggable = !book.demo; card.dataset.bookCard = book.id;
-      const cover = coverSrc(book);
-      card.innerHTML = `<label class="book-select" title="选择图书"><input type="checkbox" data-book-select="${esc(book.id)}" ${state.selectedBooks.has(book.id) ? 'checked' : ''}><span></span></label><button class="cover-button" data-open="${esc(book.id)}" aria-label="阅读 ${esc(book.title)}"><img class="book-cover" src="${cover}" alt="${esc(book.title)} 封面"/><span class="cover-progress" style="width:${Math.min(100, book.progress || 0)}%"></span></button><div class="book-meta"><div style="min-width:0"><div class="book-title" title="${esc(book.title)}">${esc(book.title)}</div><div class="book-author">${esc(book.author || book.ext?.toUpperCase() || '')}</div></div><span class="book-progress-text">${book.progress ? `已读 ${book.progress}%` : '未开始'}</span></div><div class="card-actions"><button class="card-action ${book.favorite ? 'favorite' : ''}" data-fav="${esc(book.id)}" title="${book.favorite ? '取消喜欢' : '加入喜欢'}">${book.favorite ? '♥' : '♡'}</button>${book.demo ? '' : `<button class="card-action" data-book-menu="${esc(book.id)}" title="图书选项">⋯</button>`}</div>`;
-      $('bookGrid').append(card);
-    }
-    $('allCount').textContent = state.books.length || demos.length;
-    const selectedFolder = folderRouteId(), title = selectedFolder ? folderById(selectedFolder)?.name : '';
-    $('resultText').textContent = selectedFolder ? `${books.length} 本 · 虚拟文件夹` : state.books.length ? `共 ${state.books.length} 本` : '示例书架 · 导入文件后开始管理';
-    const empty = books.length === 0; $('emptyState').classList.toggle('hidden', !empty); $('bookGrid').classList.toggle('hidden', empty);
-    if (empty && selectedFolder) { $('emptyState').querySelector('h2').textContent = `「${title || '文件夹'}」还是空的`; $('emptyState').querySelector('p').textContent = '从全部图书中选择书籍，或拖到左侧文件夹即可整理。'; $('emptyImportBtn').classList.add('hidden'); }
-    else { $('emptyState').querySelector('h2').textContent = '让好书在这里相遇'; $('emptyState').querySelector('p').textContent = '导入 EPUB、PDF 或 TXT 文件，开始整理你的私人书架。'; $('emptyImportBtn').classList.remove('hidden'); }
-    updateSelectionToolbar();
-    $('downloadDock').classList.toggle('hidden', ['downloads', 'online', 'public', 'local', 'settings'].includes(state.route));
-    const importedCount = state.books.length; $('storageText').textContent = `${importedCount} 本`; $('storageBar').style.width = `${Math.min(100, importedCount * 7)}%`;
-  }
-  function renderDashboard() {
-    const books = [...state.books].sort((a, b) => (b.addedAt || 0) - (a.addedAt || 0));
-    const reading = [...state.books].filter(b => (b.progress || 0) > 0 && (b.progress || 0) < 100).sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0));
-    const lastRead = [...state.books].filter(b => b.lastRead || b.progress).sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0))[0];
-    const hero = $('continueCard');
-    if (lastRead) {
-      hero.innerHTML = `<div class="continue-copy"><span class="section-kicker"><i></i> CONTINUE READING</span><h2>${esc(lastRead.title)}</h2><p>${esc(lastRead.lastChapterTitle || lastRead.author || '继续阅读')}</p><div class="progress-row"><span class="progress-track"><i style="width:${Math.max(2,lastRead.progress || 0)}%"></i></span><span>已读 ${lastRead.progress || 0}%</span></div><button class="primary-button" data-open="${esc(lastRead.id)}">继续阅读 <b>→</b></button></div><button class="continue-cover" data-open="${esc(lastRead.id)}"><img src="${coverSrc(lastRead)}" alt="${esc(lastRead.title)} 封面"></button><div class="continue-orbit"></div>`;
-    } else {
-      hero.innerHTML = `<div class="continue-copy"><span class="section-kicker"><i></i> YOUR NEXT STORY</span><h2>${books.length ? '挑一本书，开始阅读' : '为你的书架添上第一本书'}</h2><p>${books.length ? '打开书库，选择想读的故事。' : '导入 EPUB、PDF 或 TXT，建立你的私人阅读空间。'}</p><button class="primary-button" id="heroImportBtn">${books.length ? '浏览我的书库' : '导入第一本书'} <b>→</b></button></div><div class="hero-empty-art"><span>读</span><i>✦</i><b>✧</b></div><div class="continue-orbit"></div>`;
-      const action = $('heroImportBtn'); if (action) action.onclick = () => books.length ? navigate('all') : $('fileInput').click();
-    }
-    $('dashboardStats').innerHTML = `<article class="overview-card"><span class="overview-icon">▤</span><div><strong>${state.books.length}</strong><span>书库藏书</span></div></article><article class="overview-card"><span class="overview-icon">◷</span><div><strong>${reading.length}</strong><span>正在阅读</span></div></article><article class="overview-card"><span class="overview-icon">✓</span><div><strong>${state.books.filter(b => b.progress >= 100).length}</strong><span>已经读完</span></div></article><article class="overview-card"><span class="overview-icon">♡</span><div><strong>${state.books.filter(b => b.favorite).length}</strong><span>我的收藏</span></div></article>`;
-    $('recentBooks').innerHTML = books.length ? books.slice(0, 3).map(b => `<button class="recent-book" data-open="${esc(b.id)}"><span class="recent-cover"><img src="${coverSrc(b)}" alt="${esc(b.title)} 封面"></span><span class="recent-book-title">${esc(b.title)}</span><span class="recent-book-author">${esc(b.author || b.ext.toUpperCase())}</span><span class="recent-book-progress">${b.progress ? `已读 ${b.progress}%` : '尚未阅读'}</span></button>`).join('') : `<div class="dashboard-empty"><span class="empty-mark">＋</span><div><strong>书架还空着</strong><p>导入一本本地电子书，它会出现在这里。</p></div><button class="text-button" id="recentImportBtn">选择文件 <b>→</b></button></div>`;
-    const history = [...state.books].filter(b => b.lastRead || b.progress).sort((a, b) => (b.lastRead || 0) - (a.lastRead || 0)).slice(0, 3);
-    $('recentReading').innerHTML = history.length ? history.map(b => `<button class="history-book" data-open="${esc(b.id)}"><img src="${coverSrc(b)}" alt=""><span><strong>${esc(b.title)}</strong><small>${b.progress || 0}% · ${esc(b.author || '继续阅读')}</small></span><b>→</b></button>`).join('') : `<div class="history-empty">${state.books.length ? '阅读后，最近打开的书会显示在这里。' : '你的阅读记录会显示在这里。'}</div>`;
-    const recentImport = $('recentImportBtn'); if (recentImport) recentImport.onclick = () => $('fileInput').click();
-    renderReadingAnalytics();
-  }
-  function localDateKey(date = new Date()) { const y = date.getFullYear(), m = String(date.getMonth() + 1).padStart(2, '0'), d = String(date.getDate()).padStart(2, '0'); return `${y}-${m}-${d}`; }
-  function formatReadTime(seconds) { const minutes = Math.floor((seconds || 0) / 60); if (seconds > 0 && minutes === 0) return '不足 1 分钟'; return minutes >= 60 ? `${Math.floor(minutes / 60)} 小时 ${minutes % 60} 分` : `${minutes} 分钟`; }
-  function installAnalyticsSection() {
-    $('dashboardStats').insertAdjacentHTML('afterend', '<section class="reading-analytics" id="readingAnalytics"><div class="analytics-heading"><div><p class="eyebrow">YOUR READING INSIGHTS</p><h2>阅读数据</h2><span>按本机活跃阅读时间统计</span></div><span class="analytics-period">最近 7 天</span></div><div class="analytics-content"><div class="weekly-chart-card"><div class="chart-summary"><span>本周阅读时长</span><strong id="weeklyReadTotal">0 分钟</strong></div><div class="weekly-bars" id="weeklyReadingBars"></div></div><div class="analytics-highlights" id="readingHighlights"></div></div><p class="analytics-footnote">仅在阅读窗口前台且近期有操作时计时；此版本开始累计，不补算历史时长。</p></section>');
-  }
-  function renderReadingAnalytics() {
-    const analytics = state.readingAnalytics || { days: {}, books: {} }, today = new Date();
-    const days = Array.from({ length: 7 }, (_, i) => { const date = new Date(today); date.setDate(today.getDate() - (6 - i)); const key = localDateKey(date); return { date, key, ...(analytics.days[key] || {}) }; });
-    const totalSeconds = days.reduce((sum, day) => sum + (day.seconds || 0), 0), maxSeconds = Math.max(1, ...days.map(day => day.seconds || 0));
-    $('weeklyReadTotal').textContent = formatReadTime(totalSeconds);
-    $('weeklyReadingBars').innerHTML = days.map(day => { const minutes = Math.floor((day.seconds || 0) / 60), height = day.seconds ? Math.max(6, (day.seconds / maxSeconds) * 100) : 3; const label = day.date.toLocaleDateString('zh-CN', { weekday: 'short' }); return `<div class="weekly-bar-column" title="${day.date.toLocaleDateString('zh-CN')} · ${formatReadTime(day.seconds || 0)}"><span class="weekly-bar-value">${minutes ? `${minutes}分` : ''}</span><div class="weekly-bar-track"><i style="height:${height}%"></i></div><small>${label}</small></div>`; }).join('');
-    const activeDays = days.filter(day => (day.seconds || 0) >= 60).length, weekPageTurns = days.reduce((sum, day) => sum + (day.pageTurns || 0), 0);
-    let streak = 0, cursor = new Date(today); if ((analytics.days[localDateKey(cursor)]?.seconds || 0) < 60) cursor.setDate(cursor.getDate() - 1);
-    while (streak < 365) { const key = localDateKey(cursor); if ((analytics.days[key]?.seconds || 0) < 60) break; streak++; cursor.setDate(cursor.getDate() - 1); }
-    const topBook = Object.values(analytics.books || {}).sort((a, b) => (b.seconds || 0) - (a.seconds || 0))[0];
-    $('readingHighlights').innerHTML = `<article class="analytics-highlight"><span>连续阅读</span><strong>${streak}<small> 天</small></strong><i>连续有阅读记录的天数</i></article><article class="analytics-highlight"><span>活跃天数</span><strong>${activeDays}<small> / 7 天</small></strong><i>最近一周有阅读的天数</i></article><article class="analytics-highlight"><span>本周翻页</span><strong>${weekPageTurns}<small> 页</small></strong><i>滚轮、键盘和翻页按钮</i></article><article class="analytics-highlight top-read-book"><span>最常阅读</span><strong title="${esc(topBook?.title || '')}">${esc(topBook?.title || '开始阅读后生成')}</strong><i>${topBook ? `累计 ${formatReadTime(topBook.seconds)}` : '从现在开始记录'}</i></article>`;
-  }
-  async function saveReadingAnalytics() { await put('settings', { key: 'readingAnalytics', value: state.readingAnalytics }); }
-  function markReaderActivity() { state.readerLastActivity = Date.now(); }
-  async function trackActiveReading() {
-    const now = Date.now(), elapsed = Math.min(30, Math.max(0, Math.floor((now - state.analyticsLastTick) / 1000))); state.analyticsLastTick = now;
-    if (!state.readerBook || $('readerModal').classList.contains('hidden') || document.visibilityState !== 'visible' || !document.hasFocus() || now - state.readerLastActivity > 5 * 60 * 1000 || elapsed < 1) return;
-    const dayKey = localDateKey(new Date(now)), days = state.readingAnalytics.days || (state.readingAnalytics.days = {}), books = state.readingAnalytics.books || (state.readingAnalytics.books = {});
-    const day = days[dayKey] || (days[dayKey] = { seconds: 0, pageTurns: 0 }); day.seconds = (day.seconds || 0) + elapsed;
-    const record = books[state.readerBook.id] || (books[state.readerBook.id] = { title: state.readerBook.title, seconds: 0 }); record.title = state.readerBook.title; record.seconds = (record.seconds || 0) + elapsed;
-    try { await saveReadingAnalytics(); } catch (error) { console.warn('保存阅读统计失败', error); }
-  }
-  async function recordPageTurn() {
-    if (!state.readerBook) return;
-    markReaderActivity(); const key = localDateKey(), days = state.readingAnalytics.days || (state.readingAnalytics.days = {}), day = days[key] || (days[key] = { seconds: 0, pageTurns: 0 });
-    day.pageTurns = (day.pageTurns || 0) + 1;
-    try { await saveReadingAnalytics(); } catch (error) { console.warn('保存翻页统计失败', error); }
-  }
-  function renderTasks() {
-    $('taskCount').textContent = state.tasks.filter(t => t.status !== 'done').length;
-    $('downloadBadge').textContent = state.tasks.filter(t => t.status !== 'done').length;
-    $('downloadBadge').classList.toggle('hidden', !state.tasks.some(t => t.status !== 'done'));
-    const recent = state.tasks.slice(0, 3);
-    $('taskList').innerHTML = recent.map(t => `<div class="dock-task"><div class="task-file-icon">${esc(t.ext.toUpperCase().slice(0,4))}</div><div class="task-info"><div class="task-name">${esc(t.name)}</div><div class="task-status ${t.status === 'done' ? 'done' : ''}">${esc(t.message || (t.status === 'done' ? '已完成' : t.status === 'error' ? '失败' : '等待文件完成'))}</div></div><div class="task-progress"><i style="width:${t.progress || 0}%"></i></div></div>`).join('');
-    $('dockMessage').textContent = state.tasks.length ? '下载完成后自动添加到本地图书馆' : '下载完成后自动添加到本地图书馆';
-    $('dockOpen').style.display = state.tasks.length ? 'inline-block' : '';
-    const done = state.tasks.filter(t => t.status === 'done').length, active = state.tasks.filter(t => t.status === 'active' || t.status === 'waiting').length, imported = state.tasks.filter(t => t.imported).length;
-    $('activeStat').textContent = active; $('completeStat').textContent = done; $('importedStat').textContent = imported;
-    $('downloadTable').innerHTML = state.tasks.map(t => `<div class="download-row"><div class="task-file-icon">${esc(t.ext.toUpperCase().slice(0,4))}</div><div class="task-info"><div class="task-name">${esc(t.name)}</div><div class="task-status ${t.status === 'done' ? 'done' : ''}">${esc(t.message || t.status)}</div></div><div class="task-progress"><i style="width:${t.progress || 0}%"></i></div>${t.nativePath && t.status === 'waiting' ? `<button class="text-button import-task" data-import-task="${esc(t.id)}">导入</button>` : `<span class="row-date" style="color:#858a90;font-size:10px">${new Date(t.createdAt).toLocaleDateString()}</span>`}</div>`).join('');
-    $('downloadEmpty').classList.toggle('hidden', state.tasks.length > 0); $('downloadTable').classList.toggle('hidden', state.tasks.length === 0);
-  }
+  // Feature factories share existing app services without duplicating state.
+  const { booksForView, coverSrc, renderBooks } = createLibraryView({ state, $, esc, svgCover, folderRouteId, getFolderBooks, folderById, updateSelectionToolbar });
+  const { installAnalyticsSection, renderReadingAnalytics, markReaderActivity, trackActiveReading, recordPageTurn } = createReadingAnalytics({ state, $, esc, put });
+  const { renderDashboard } = createDashboardView({ state, $, esc, coverSrc, navigate, renderReadingAnalytics });
+  const { renderTasks } = createTaskView({ state, $, esc });
+
   function render() { renderFolders(); renderBooks(); renderTasks(); renderDashboard(); }
   function titleFor(route) { if (route.startsWith('folder:')) return folderById(route.slice(7))?.name || '我的文件夹'; return ({ all: '全部图书', favorites: '我的喜爱', history: '阅读记录' })[route] || '我的书库'; }
   function navigate(route) {
