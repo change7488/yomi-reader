@@ -14,7 +14,6 @@ console.log('Android ABI: arm64-v8a');
 
 // Add the tiny native key plugin after Capacitor regenerates Android files.
 import { copyFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
 const nativeFolder = resolve('mobile/android/app/src/main/java/com/change7488/yomireader');
 mkdirSync(nativeFolder, { recursive: true });
 for (const name of ['MainActivity.java', 'ReaderKeysPlugin.java']) {
