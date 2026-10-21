@@ -273,7 +273,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   const { renderDashboard } = createDashboardView({ state, $, esc, coverSrc, navigate, renderReadingAnalytics });
   const { renderTasks } = createTaskView({ state, $, esc });
   // The same reader controller drives Electron and Android WebView.
-  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook, closeReader, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard });
+  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook, closeReader, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn });
 
   function render() { renderFolders(); renderBooks(); renderTasks(); renderDashboard(); }
   function titleFor(route) { if (route.startsWith('folder:')) return folderById(route.slice(7))?.name || '我的文件夹'; return ({ all: '全部图书', favorites: '我的喜爱', history: '阅读记录' })[route] || '我的书库'; }
