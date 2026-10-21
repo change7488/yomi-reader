@@ -1,0 +1,46 @@
+.yomi-guide-layer{position:fixed;inset:0;z-index:50000;font-family:inherit;color:var(--text,#1b2d25);pointer-events:none}
+.yomi-guide-layer *{box-sizing:border-box}
+.yomi-guide-scrim{position:absolute;inset:0;background:#091b17a8;backdrop-filter:blur(5px);pointer-events:auto}
+.yomi-guide-welcome,.yomi-guide-help-dialog{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);background:#fffdf9;color:#27362f;border:1px solid #ecf0e8;box-shadow:0 24px 85px #081c1a38;border-radius:24px;pointer-events:auto}
+.yomi-guide-welcome{width:min(480px,calc(100vw - 30px));padding:32px 36px;text-align:center}
+.yomi-guide-illustration{height:140px;background:linear-gradient(130deg,#e0f4e9,#f6f4e9);border-radius:18px;display:flex;justify-content:center;align-items:center;gap:12px;color:#60ab92}
+.yomi-guide-illustration div{font-size:64px;transform:rotate(-7deg);filter:drop-shadow(0 8px 12px #1b564321)}
+.yomi-guide-illustration span{font-size:26px;transform:translateY(-25px)}
+.yomi-guide-kicker{font-size:10px!important;font-weight:700;letter-spacing:2px;color:#468d72!important;margin:20px 0 8px!important}
+.yomi-guide-welcome h2{font-size:25px;line-height:1.3;margin:5px 0 12px;color:#203b31}
+.yomi-guide-lead{font-size:15px;margin:0 0 12px;color:#3c544a}
+.yomi-guide-description{font-size:13px;line-height:1.8;margin:0;color:#7b8d84}
+.yomi-guide-actions{display:flex;align-items:center;justify-content:flex-end;gap:10px;margin-top:24px}
+.yomi-guide-quiet,.yomi-guide-primary,.yomi-guide-icon{cursor:pointer;font:inherit;border:0}
+.yomi-guide-quiet{padding:10px 15px;background:transparent;color:#6d8379;border-radius:10px;font-size:12px}
+.yomi-guide-quiet:hover{background:#f0f5ef}
+.yomi-guide-primary{background:#338668;color:#fff;padding:10px 17px;border-radius:10px;font-size:12px;font-weight:600;box-shadow:0 5px 12px #2f89632b}
+.yomi-guide-primary:hover{background:#237455}
+.yomi-guide-primary:disabled{opacity:.4;cursor:not-allowed}
+.yomi-guide-welcome .yomi-guide-actions{justify-content:center}
+.yomi-guide-shades>div{position:fixed;pointer-events:auto;background:#0a1b18a0}
+.yomi-guide-ring{position:fixed;border:2px solid #64c39b;border-radius:12px;box-shadow:0 0 0 3px #fff9,0 8px 22px #0003;pointer-events:none}
+.yomi-guide-tip{position:fixed;background:#fffdf9;color:#23382d;padding:20px;border-radius:16px;box-shadow:0 15px 45px #0004;pointer-events:auto;max-height:calc(100vh - 24px);overflow:auto}
+.yomi-guide-step-tag{font-size:11px;letter-spacing:1px;font-weight:700;color:#2f9875}
+.yomi-guide-tip h2{font-size:17px;line-height:1.5;margin:10px 0}
+.yomi-guide-tip p{font-size:13px;line-height:1.75;color:#687f72;margin:0}
+.yomi-guide-tip .yomi-guide-actions{justify-content:space-between}
+.yomi-guide-compact .yomi-guide-kicker{margin-top:0!important}
+.yomi-guide-compact>p:not(.yomi-guide-kicker){font-size:13px;line-height:1.8;color:#657e70}
+.yomi-guide-help-dialog{width:min(740px,calc(100vw - 28px));max-height:min(590px,calc(100vh - 28px));display:flex;flex-direction:column;overflow:hidden}
+.yomi-guide-help-dialog header{padding:22px 28px 16px;display:flex;align-items:flex-start;justify-content:space-between;border-bottom:1px solid #e9ede8}
+.yomi-guide-help-dialog header h2{font-size:23px;margin:4px 0;color:#203c31}
+.yomi-guide-help-dialog header p:not(.yomi-guide-kicker){font-size:12px;color:#789084;margin:0}
+.yomi-guide-help-dialog header .yomi-guide-kicker{margin:0!important}
+.yomi-guide-icon{font-size:26px;color:#749184;background:none;padding:0 8px}
+.yomi-guide-help-layout{display:grid;grid-template-columns:190px 1fr;flex:1;min-height:0}
+.yomi-guide-help-nav{padding:16px 12px;background:#f5f8f3;display:flex;flex-direction:column;gap:4px}
+.yomi-guide-help-nav button{border:0;background:transparent;color:#536b5e;text-align:left;padding:12px;border-radius:10px;font-size:13px;cursor:pointer}
+.yomi-guide-help-nav button[aria-current=page]{background:#dcefe3;color:#276d51;font-weight:700}
+.yomi-guide-help-body{padding:22px 30px;overflow:auto;font-size:13px;line-height:1.95;color:#526d60}
+.yomi-guide-help-body h3{font-size:18px;color:#283f32;margin:0 0 12px}
+.yomi-guide-help-body kbd{padding:2px 6px;border-radius:5px;background:#edf3ec;color:#305b46;font-size:12px}
+.yomi-guide-help-dialog footer{padding:14px 24px;border-top:1px solid #e9ede8;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.yomi-guide-anchor{scroll-margin:80px}
+@media(max-width:600px){.yomi-guide-welcome{padding:22px}.yomi-guide-help-layout{grid-template-columns:1fr;overflow:auto}.yomi-guide-help-nav{flex-direction:row;overflow-x:auto;padding:10px}.yomi-guide-help-nav button{white-space:nowrap}.yomi-guide-help-dialog header{padding:16px}.yomi-guide-help-dialog footer{padding:10px;flex-wrap:wrap}.yomi-guide-help-body{padding:18px}.yomi-guide-tip{padding:14px}}
+@media(prefers-reduced-motion:reduce){.yomi-guide-layer *{animation:none!important;transition:none!important}}
