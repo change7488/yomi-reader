@@ -15,6 +15,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   'use strict';
   const DB_NAME = 'libra-reader-preview';
   const ACCEPTED = new Set(['epub', 'pdf', 'txt']);
+  let folderBrowserFiles = [];
   const $ = (id) => document.getElementById(id);
   const appearance = { palette: 'mint', mode: 'light', accent: '' };
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -138,7 +139,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   }
   async function addFile(file, source = '本地导入', nativeSourcePath = '', options = {}) {
     const ext = await validate(file), hash = await hashFile(file);
-    if (state.books.some(book => book.hash === hash)) { if (!options.quiet) toast(`《${filenameTitle(file.name)}》已在书架中，跳过重复文件。`); return null; }
+    if (!options.allowDuplicate && state.books.some(book => book.hash === hash)) { if (!options.quiet) toast(`《${filenameTitle(file.name)}》已在书架中，跳过重复文件。`); return null; }
     const now = Date.now(), id = `${hash.slice(0, 18)}-${now}`;
     let meta = { title: filenameTitle(file.name), author: '', coverBlob: null };
     if (ext === 'epub') {
@@ -179,17 +180,22 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
       : '没有找到符合格式和最小大小条件的文件。';
     list.innerHTML = items.map((item, index) => `<label class="folder-file-row"><input type="checkbox" data-import-index="${index}" ${item.selected ? 'checked' : ''}><span class="folder-file-type">${esc(item.ext.toUpperCase())}</span><span class="folder-file-name"><b>${esc(item.name)}</b><small>${esc(item.relativePath)}</small></span><span class="folder-file-size">${formatFileSize(item.size)}</span></label>`).join('') || '<div class="folder-file-empty">没有匹配文件。</div>';
     const selected = items.filter(item => item.selected).length;
+    $('folderSelectAll').checked = !!items.length && selected === items.length;
+    $('folderSelectAll').indeterminate = selected > 0 && selected < items.length;
     $('folderImportStart').disabled = selected === 0;
     $('folderImportStart').textContent = `导入选中文件（${selected}）`;
   }
   async function scanImportFolder() {
-    if (!state.folderImportPath || !window.libraDesktop?.isDesktop) { toast('请先选择要扫描的文件夹。'); return; }
+    if (!state.folderImportPath) { toast('请先选择要扫描的文件夹。'); return; }
     const formats = [...document.querySelectorAll('.folder-format-list input:checked')].map(input => input.value);
     if (!formats.length) { toast('至少选择一种文件格式。'); return; }
     const button = $('folderScanBtn'); button.disabled = true; button.textContent = '正在扫描…';
     try {
       const minBytes = Math.max(0, Number($('folderMinSize').value) || 0) * 1024;
-      state.folderImportItems = (await window.libraDesktop.scanImportFolder(state.folderImportPath, formats, minBytes)).map(item => ({ ...item, selected: true }));
+      const matches = window.libraDesktop?.isDesktop
+        ? await window.libraDesktop.scanImportFolder(state.folderImportPath, formats, minBytes)
+        : folderBrowserFiles.filter(file => formats.includes(extension(file.name)) && file.size >= minBytes).map((file, index) => ({ name: file.name, ext: extension(file.name), size: file.size, relativePath: file.webkitRelativePath || file.name, browserIndex: folderBrowserFiles.indexOf(file) }));
+      state.folderImportItems = matches.map(item => ({ ...item, selected: true }));
       renderFolderImportFiles();
     } catch (error) { toast(`扫描文件夹失败：${error.message || error}`, 'error'); }
     finally { button.disabled = false; button.textContent = '扫描匹配文件'; }
@@ -202,10 +208,14 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     for (let index = 0; index < selected.length; index++) {
       const item = selected[index]; button.textContent = `正在导入 ${index + 1}/${selected.length}`;
       try {
-        const result = await window.libraDesktop.readImportFile(item.path);
-        if (!result?.bytes) throw new Error('无法读取文件，可能已被移动或删除');
-        const file = new File([result.bytes], result.name, { lastModified: result.lastModified });
-        const book = await addFile(file, '文件夹导入', item.path, { quiet: true, favorite: $('folderImportFavorite').checked });
+        let file;
+        if (window.libraDesktop?.isDesktop) {
+          const result = await window.libraDesktop.readImportFile(item.path);
+          if (!result?.bytes) throw new Error('无法读取文件，可能已被移动或删除');
+          file = new File([result.bytes], result.name, { lastModified: result.lastModified });
+        } else file = folderBrowserFiles[item.browserIndex];
+        if (!file) throw new Error('所选文件已不可用，请重新选择文件夹');
+        const book = await addFile(file, '文件夹导入', item.path || '', { quiet: true, favorite: $('folderImportFavorite').checked, allowDuplicate: $('allowDuplicateImport').checked });
         if (book) imported++; else skipped++;
       } catch (error) { failed.push(`${item.name}：${error.message || '导入失败'}`); }
     }
@@ -501,22 +511,31 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     $('importBtn').onclick = $('emptyImportBtn').onclick = $('dropImportBtn').onclick = () => $('fileInput').click();
     $('dashboardImportBtn').onclick = () => $('fileInput').click();
     $('dashboardImportFolderBtn').onclick = () => {
-      if (!window.libraDesktop?.isDesktop) { toast('文件夹扫描导入需要 Windows 桌面版。'); return; }
       $('folderImportModal').classList.remove('hidden'); $('folderImportPath').textContent = state.folderImportPath || '尚未选择文件夹';
       $('folderFileList').innerHTML = '<div class="folder-file-empty">选择文件夹后扫描匹配文件。</div>';
       $('folderScanSummary').textContent = '选择文件夹和格式后开始扫描。'; $('folderImportStart').disabled = true;
     };
     $('folderChooseSourceBtn').onclick = async () => {
       try {
-        const folder = await window.libraDesktop?.chooseImportFolder(); if (!folder) return;
+        if (!window.libraDesktop?.isDesktop) { $('folderInput').click(); return; }
+        const folder = await window.libraDesktop.chooseImportFolder(); if (!folder) return;
         state.folderImportPath = folder; $('folderImportPath').textContent = folder; await scanImportFolder();
       } catch (error) { toast(`选择文件夹失败：${error.message || error}`, 'error'); }
     };
+    $('folderInput').onchange = async e => {
+      folderBrowserFiles = Array.from(e.target.files || []);
+      state.folderImportPath = folderBrowserFiles[0]?.webkitRelativePath?.split('/')[0] || '';
+      $('folderImportPath').textContent = state.folderImportPath || '尚未选择文件夹';
+      if (folderBrowserFiles.length) await scanImportFolder();
+      e.target.value = '';
+    };
+    $('folderSelectAll').onchange = e => { state.folderImportItems.forEach(item => { item.selected = e.target.checked; }); renderFolderImportFiles(); };
     $('folderScanBtn').onclick = scanImportFolder;
     $('folderFileList').onchange = e => { const input = e.target.closest('[data-import-index]'); if (!input) return; const item = state.folderImportItems[Number(input.dataset.importIndex)]; if (item) item.selected = input.checked; renderFolderImportFiles(); };
     $('folderImportStart').onclick = importFolderSelection;
     $('folderImportClose').onclick = $('folderImportCancel').onclick = () => $('folderImportModal').classList.add('hidden');
     $('folderImportModal').onclick = e => { if (e.target === $('folderImportModal')) $('folderImportModal').classList.add('hidden'); };
+    if (window.Capacitor?.isNativePlatform?.()) $('dashboardImportFolderBtn').classList.remove('hidden');
     $('chooseLibraryPathBtn').onclick = migrateLibraryFolder;
     $('fileInput').onchange = async e => { await importFiles(e.target.files, '本地导入'); e.target.value = ''; };
     $('searchInput').oninput = e => { state.query = e.target.value.trim(); renderBooks(); };
