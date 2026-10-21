@@ -12,7 +12,7 @@ permissions:
 jobs:
   build-android:
     runs-on: ubuntu-latest
-    timeout-minutes: 35
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -54,5 +54,16 @@ jobs:
         run: |
           npm ci
           npm run check
+      - name: Install licensed offline fonts
+        run: npm run fonts:sync
       - name: Run desktop UI smoke tests
         run: npm run test:ui
+      - name: Verify Windows x64 installer packaging
+        run: npm run dist:win
+      - name: Upload Windows installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: Yomi-Reader-Windows-x64-Setup
+          path: release/Yomi-Reader-0.3.0-x64-Setup.exe
+          if-no-files-found: error
+          retention-days: 14
