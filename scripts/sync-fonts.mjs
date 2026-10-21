@@ -1,6 +1,6 @@
 // Downloads the pinned OFL font bundle at build time, keeping Git history lean.
 // Runs on Windows and Android builds; already cached fonts work without network.
-import { mkdir, readFile, writeFile, rename, rm, stat } from 'node:fs/promises';
+import { mkdir, readFile, writeFile, rename, rm, copyFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
 import { dirname, join, resolve } from 'node:path';
 
@@ -8,6 +8,10 @@ const root = resolve(import.meta.dirname, '..');
 const catalog = JSON.parse(await readFile(join(root, 'ui-prototype/fonts/catalog.json'), 'utf8'));
 const destination = join(root, 'ui-prototype/fonts/builtin');
 const licenseDir = join(root, 'ui-prototype/fonts/licenses');
+// Reuse the exact user-designed Windows artwork for the in-app brand mark as well.
+const previewIcon = join(root, 'ui-prototype/assets/yomi-reader.png');
+await mkdir(dirname(previewIcon), { recursive: true });
+await copyFile(join(root, 'assets/yomi-reader.png'), previewIcon);
 const sourceRepo = 'joeseesun/qiaomu-cover-fonts';
 const ref = '1.0.0';
 if (catalog.styles.length !== 20 || catalog.sourceTag !== ref) throw new Error('字体清单版本/数量不正确');
