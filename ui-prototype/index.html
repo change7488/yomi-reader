@@ -1,0 +1,158 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#08090b" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: https:; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; script-src 'self'; connect-src 'self' https:; frame-src https: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https:" />
+    <title>Yomi Reader</title>
+    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="design-system.css" />
+  </head>
+  <body class="light-mode sidebar-collapsed">
+    <div class="app-shell">
+      <aside class="sidebar">
+        <button class="brand" data-view="all" aria-label="Yomi Reader 首页">
+          <span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></svg></span>
+          <span>Yomi Reader</span>
+        </button>
+
+        <nav class="nav-group primary-nav" aria-label="书架">
+          <button class="nav-item active" data-view="home"><span class="nav-icon">⌂</span><span>首页</span></button>
+          <button class="nav-item" data-view="all"><span class="nav-icon">▤</span><span>我的书库</span></button>
+          <button class="nav-item" data-view="favorites"><span class="nav-icon">♡</span><span>我的喜爱</span></button>
+          <button class="nav-item" data-view="history"><span class="nav-icon">♧</span><span>阅读记录</span></button>
+        </nav>
+
+        <section class="folder-nav-section"><div class="folder-nav-heading"><span>我的文件夹</span><button id="folderCreateNavBtn" title="新建文件夹" aria-label="新建文件夹">＋</button></div><nav class="folder-nav-tree" id="folderNavTree" aria-label="自定义文件夹"></nav></section>
+
+        <div class="nav-divider"></div>
+        <div class="nav-caption"><span class="globe">◎</span> 在线书库</div>
+        <nav class="nav-group online-nav" aria-label="在线书库">
+          <button class="nav-item text-only" data-view="online"><span>Z-Library</span></button>
+          <button class="nav-item text-only" data-view="public"><span>公共领域书库</span></button>
+        </nav>
+
+        <div class="nav-divider"></div>
+        <nav class="nav-group utility-nav" aria-label="工具">
+          <button class="nav-item" data-view="downloads"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg></span><span>下载管理</span><span class="nav-badge hidden" id="downloadBadge">0</span></button>
+          <button class="nav-item" data-view="local"><span class="nav-icon"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H10l2 2h7.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg></span><span>本地文件</span></button>
+        </nav>
+
+        <div class="sidebar-bottom">
+          <div class="storage-label"><span>本地书库</span><span id="storageText">0 本</span></div>
+          <div class="storage-track"><span id="storageBar"></span></div>
+          <button class="sidebar-settings" id="sidebarCollapseBtn" title="收起导航"><span class="gear">☰</span> 收起导航</button>
+          <button class="sidebar-settings" id="settingsBtn"><span class="gear">⚙</span> 偏好设置</button>
+          <div class="version">YOMI READER <span>0.1 · 预览版</span></div>
+        </div>
+      </aside>
+
+      <main class="main-area">
+        <header class="topbar">
+          <div class="mobile-brand">♧ <strong>Yomi Reader</strong></div>
+          <label class="search-box" id="searchBox">
+            <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
+            <input id="searchInput" type="search" placeholder="搜索书名、作者、ISBN..." autocomplete="off" />
+            <kbd>⌘ K</kbd>
+          </label>
+          <div class="top-actions">
+            <button class="icon-button" id="topSearchBtn" title="搜索" aria-label="搜索"><svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg></button>
+            <button class="icon-button" id="themeBtn" title="外观设置" aria-label="外观设置" aria-expanded="false" aria-controls="appearancePopover"><svg viewBox="0 0 24 24"><path d="M12 3v2m0 14v2m9-9h-2M5 12H3m15.36-6.36-1.42 1.42M7.06 16.94l-1.42 1.42m12.72 0-1.42-1.42M7.06 7.06 5.64 5.64"/><circle cx="12" cy="12" r="4"/></svg></button>
+            <button class="avatar" id="profileBtn" title="本地模式">L</button>
+          </div>
+          <div class="appearance-popover hidden" id="appearancePopover" role="dialog" aria-label="外观设置"><div class="appearance-title"><strong>外观设置</strong><span>界面配色与显示模式</span></div><div class="appearance-palette" role="group" aria-label="配色"><button data-palette-choice="mint"><i></i><span>薄荷青绿</span></button><button data-palette-choice="lilac"><i></i><span>奶油紫灰</span></button><button data-palette-choice="graphite"><i></i><span>石墨深色</span></button></div><div class="appearance-modes" role="group" aria-label="显示模式"><button data-mode-choice="light">浅色</button><button data-mode-choice="dark">深色</button><button data-mode-choice="system">跟随系统</button></div><label class="accent-setting">自定义强调色 <input type="color" id="accentColorInput" value="#287f62" aria-label="自定义强调色"></label><button class="appearance-reset" id="accentResetBtn">恢复配色默认值</button></div>
+        </header>
+
+        <section class="content" id="content">
+          <section class="dashboard" id="dashboard">
+            <div class="dashboard-heading"><div><p class="eyebrow">YOUR READING SPACE</p><h1>欢迎回来<span class="heading-dot">.</span></h1><p>继续探索你的轻小说世界</p></div><div class="dashboard-actions"><button class="secondary-button" id="dashboardImportFolderBtn">▤ 扫描文件夹</button><button class="primary-button" id="dashboardImportBtn"><span>＋</span> 导入图书</button></div></div>
+            <section class="continue-card" id="continueCard"></section>
+            <div class="dashboard-stats" id="dashboardStats"></div>
+            <section class="dashboard-section"><div class="dashboard-section-head"><div><h2>最近添加</h2><span>新加入书架的故事</span></div><button class="text-button" data-view="all">查看书库 <b>→</b></button></div><div class="recent-books" id="recentBooks"></div></section>
+            <section class="dashboard-section recent-reading-section"><div class="dashboard-section-head"><div><h2>最近阅读</h2><span>从上次停下的地方继续</span></div><button class="text-button" data-view="history">阅读记录 <b>→</b></button></div><div class="recent-reading" id="recentReading"></div></section>
+          </section>
+          <section id="libraryView" class="hidden">
+          <div class="view-heading">
+            <div>
+              <p class="eyebrow">YOUR PERSONAL LIBRARY</p>
+              <h1 id="pageTitle">我的图书馆<span class="heading-dot">.</span></h1>
+            </div>
+            <div class="heading-actions">
+              <button class="secondary-button" id="sortBtn"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10m-7 6h4"/></svg> 最近添加 <span class="chevron">⌄</span></button>
+              <button class="primary-button" id="importBtn"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4"/></svg> 导入图书</button>
+              <input type="file" id="fileInput" accept=".epub,.pdf,.txt" multiple hidden />
+            </div>
+          </div>
+
+          <div class="library-subbar">
+            <div class="filter-tabs"><button class="filter-tab selected" data-filter="all">全部 <span id="allCount">0</span></button><button class="filter-tab" data-filter="reading">正在阅读</button><button class="filter-tab" data-filter="unread">未开始</button></div>
+            <div class="view-controls"><span id="resultText">书架已准备就绪</span><label class="density-control" for="coverDensityRange">封面大小 <input id="coverDensityRange" type="range" min="140" max="280" step="4" value="196"><output id="coverDensityValue" for="coverDensityRange">舒适</output></label><button class="view-toggle active" title="网格视图" aria-label="网格视图">▦</button><button class="view-toggle" title="列表视图" aria-label="列表视图">☷</button></div>
+          </div>
+
+          <div class="bulk-folder-toolbar hidden" id="bulkFolderToolbar"><span id="selectedBooksCount">已选 0 本</span><button class="secondary-button" id="bulkAddFolderBtn">添加到文件夹</button><button class="secondary-button" id="bulkCreateFolderBtn">新建文件夹并添加</button><button class="secondary-button hidden" id="bulkRemoveFolderBtn">从当前文件夹移除</button><button class="text-button" id="clearBookSelectionBtn">取消选择</button></div>
+
+          <div class="book-grid" id="bookGrid"></div>
+
+          <div class="empty-state hidden" id="emptyState">
+            <div class="empty-art"><div class="empty-book">＋</div><span class="spark spark-a">✦</span><span class="spark spark-b">✧</span></div>
+            <h2>让好书在这里相遇</h2>
+            <p>导入 EPUB、PDF 或 TXT 文件，开始整理你的私人书架。</p>
+            <button class="primary-button" id="emptyImportBtn">导入第一本书</button>
+          </div>
+
+          <section class="download-dock" id="downloadDock">
+            <div class="dock-head">
+              <div class="dock-title"><span class="dock-icon"><svg viewBox="0 0 24 24"><path d="M12 3v11m0 0 4-4m-4 4-4-4M4 17v3h16v-3"/></svg></span><strong>下载任务</strong><span class="task-count" id="taskCount">0</span></div>
+              <button class="auto-toggle on" id="autoToggle"><span></span> 自动入库已开启</button>
+            </div>
+            <div class="dock-body">
+              <div class="dock-message" id="dockMessage">下载完成后自动添加到本地图书馆</div>
+              <div class="task-list" id="taskList"></div>
+              <button class="dock-open" id="dockOpen" data-view="downloads">查看全部任务 <span>→</span></button>
+            </div>
+          </section>
+          <footer class="content-footer"><span>静下心来，读一本好书。</span><span>YOMI READER <i>✦</i></span></footer>
+          </section>
+        </section>
+
+        <section class="subpage hidden" id="onlinePage">
+          <div class="subpage-heading"><p class="eyebrow">DISCOVER & READ</p><h1>在线书库<span class="heading-dot">.</span></h1><p class="subpage-lead">在新标签页访问你常用的在线书库，网站下载的文件保存到监控文件夹后会出现在下载管理里。</p></div>
+          <div class="online-toolbar"><div class="url-field"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3a15 15 0 0 1 0 18m0-18a15 15 0 0 0 0 18"/></svg><input id="siteUrl" placeholder="粘贴你使用的 Z-Library 个人访问地址（HTTPS）"/><button id="goSiteBtn">新标签页打开 <span>↗</span></button></div><button class="icon-button" id="siteReload" title="刷新">↻</button></div>
+          <div class="browser-meta"><span class="secure-dot"></span><span id="siteOrigin">尚未打开网站</span><span class="browser-note">网站登录由浏览器会话处理</span></div>
+          <div class="browser-frame-wrap"><div class="browser-empty" id="browserEmpty"><div class="browser-empty-icon">◎</div><h2>打开你的在线书库</h2><p>填入你自己的 HTTPS 访问地址。新标签页会以普通网页方式打开，适合登录和 Cookie 验证。</p><div class="browser-hint"><span>⌁</span> 下载文件保存到监控文件夹后，可自动导入书架</div><button class="secondary-button embed-button" id="embedSiteBtn">尝试在页面内嵌打开</button></div><iframe id="siteFrame" class="site-frame hidden" title="在线书库" referrerpolicy="no-referrer"></iframe></div>
+          <div class="notice-strip"><span>ⓘ</span> 内嵌窗口属于跨站 iframe，可能无法读取网站 Cookie；若仍提示 Cookie，请用新标签页访问。应用不会绕过网站的登录或下载限制。</div>
+        </section>
+
+        <section class="subpage hidden" id="downloadsPage">
+          <div class="subpage-heading"><p class="eyebrow">DOWNLOAD CENTER</p><h1>下载管理<span class="heading-dot">.</span></h1><p class="subpage-lead">监控你选择的下载文件夹。文件下载完成并通过格式检查后，可以自动导入书架。</p></div>
+          <div class="watch-card"><div class="watch-icon"><svg viewBox="0 0 24 24"><path d="M3 6.5A1.5 1.5 0 0 1 4.5 5H10l2 2h7.5A1.5 1.5 0 0 1 21 8.5v9a1.5 1.5 0 0 1-1.5 1.5h-15A1.5 1.5 0 0 1 3 17.5z"/></svg></div><div class="watch-info"><strong>自动导入文件夹</strong><span id="watchFolderText">尚未选择文件夹</span></div><button class="secondary-button" id="chooseFolderBtn">选择文件夹</button><button class="watch-switch on" id="watchSwitch" aria-label="开启文件夹监控"><span></span></button></div>
+          <div class="download-stats"><div class="stat-card"><span>当前任务</span><strong id="activeStat">0</strong></div><div class="stat-card"><span>已完成</span><strong id="completeStat">0</strong></div><div class="stat-card"><span>自动导入</span><strong id="importedStat">0</strong></div></div>
+          <div class="list-heading"><h2>最近任务</h2><button class="text-button" id="clearTasksBtn">清空已完成</button></div>
+          <div class="download-table" id="downloadTable"></div>
+          <div class="download-empty hidden" id="downloadEmpty"><div class="empty-download-icon">↓</div><strong>还没有下载任务</strong><span>在在线书库中下载的图书，或从监控文件夹导入的图书会显示在这里。</span></div>
+        </section>
+
+        <section class="subpage hidden" id="localPage">
+          <div class="subpage-heading"><p class="eyebrow">ON THIS DEVICE</p><h1>本地文件<span class="heading-dot">.</span></h1><p class="subpage-lead">你的书籍文件和封面保存在这台设备上。</p></div>
+          <div class="local-drop" id="dropZone"><div class="drop-icon"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4"/></svg></div><strong>将 EPUB、PDF 或 TXT 拖到这里</strong><span>或点击选择本地文件</span><button class="secondary-button" id="dropImportBtn">选择文件</button></div>
+          <div class="local-info"><span>已导入的书会同步显示在「全部图书」书架中。</span><button class="text-button" data-view="all">返回书架 →</button></div>
+        </section>
+
+        <section class="subpage hidden" id="settingsPage">
+          <div class="subpage-heading"><p class="eyebrow">YOUR READING SPACE</p><h1>偏好设置<span class="heading-dot">.</span></h1><p class="subpage-lead">调整书架和本地文件管理选项。</p></div>
+          <div class="settings-card"><div><strong>自动导入下载完成的图书</strong><span>扫描已选择的文件夹，并将 EPUB、PDF、TXT 添加到书架。</span></div><button class="watch-switch on" id="settingsAutoSwitch"><span></span></button></div><div class="settings-card library-storage-card"><div><strong>书籍文件存储位置</strong><span id="libraryPathText">正在读取存储位置…</span><small>导入时会复制到此文件夹，原文件可单独删除。</small></div><button class="secondary-button" id="chooseLibraryPathBtn">更改路径并迁移</button></div><div class="settings-card"><div><strong>本地书库数据</strong><span>书目、阅读进度保存在本机数据库，书籍副本保存在上方路径。</span></div><span class="local-pill">仅此设备</span></div><div class="settings-card danger-row"><div><strong>清空本地演示数据</strong><span>清除导入的书籍索引和阅读进度。</span></div><button class="secondary-button" id="clearLibraryBtn">清空书架</button></div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast-stack" id="toastStack"></div>
+    <div class="folder-import-modal hidden" id="folderImportModal" role="dialog" aria-modal="true" aria-labelledby="folderImportTitle"><section class="folder-import-dialog"><header><div><p class="eyebrow">BATCH IMPORT</p><h2 id="folderImportTitle">从文件夹导入</h2><p>扫描所选目录及其子目录，匹配格式后复制到软件书库。</p></div><button class="folder-import-close" id="folderImportClose" aria-label="关闭">×</button></header><div class="folder-import-source"><div><strong>扫描文件夹</strong><span id="folderImportPath">尚未选择文件夹</span></div><button class="secondary-button" id="folderChooseSourceBtn">选择文件夹</button></div><div class="folder-import-filters"><div class="folder-format-list"><strong>识别格式</strong><label><input type="checkbox" value="epub" checked> EPUB</label><label><input type="checkbox" value="pdf" checked> PDF</label><label><input type="checkbox" value="txt" checked> TXT</label><small>当前阅读器支持以上三种格式。</small></div><label class="folder-min-size">最小文件大小<input id="folderMinSize" type="number" min="0" step="1" value="0"><span>KB</span></label><button class="primary-button" id="folderScanBtn">扫描匹配文件</button></div><div class="folder-scan-summary" id="folderScanSummary">选择文件夹和格式后开始扫描。</div><div class="folder-file-list" id="folderFileList"><div class="folder-file-empty">扫描结果会显示在这里。</div></div><footer><label class="folder-favorite-option"><input type="checkbox" id="folderImportFavorite"> 导入后加入收藏</label><div><button class="secondary-button" id="folderImportCancel">取消</button><button class="primary-button" id="folderImportStart" disabled>导入选中文件</button></div></footer></section></div>
+    <div class="folder-editor-modal hidden" id="folderEditorModal" role="dialog" aria-modal="true" aria-labelledby="folderEditorTitle"><section class="folder-editor-dialog"><header><h2 id="folderEditorTitle">新建文件夹</h2><button id="folderEditorClose" aria-label="关闭">×</button></header><label>文件夹名称<input id="folderNameInput" maxlength="50" placeholder="例如：异世界冒险"></label><label>上级文件夹<select id="folderParentSelect"></select></label><div class="folder-style-fields"><label>图标<input id="folderIconInput" maxlength="4" value="📚"></label><label>颜色<input id="folderColorInput" type="color" value="#61a77d"></label></div><footer><button class="secondary-button" id="folderEditorCancel">取消</button><button class="primary-button" id="folderEditorSave">保存文件夹</button></footer></section></div>
+    <div class="app-confirm-modal hidden" id="appConfirmModal" role="dialog" aria-modal="true"><section><header><h2 id="appConfirmTitle"></h2><button id="appConfirmClose" aria-label="关闭">×</button></header><p id="appConfirmText"></p><footer><button class="secondary-button" id="appConfirmCancel">取消</button><button class="primary-button danger-confirm" id="appConfirmAccept">确认</button></footer></section></div>
+    <div class="book-delete-modal hidden" id="bookDeleteModal" role="dialog" aria-modal="true" aria-labelledby="bookDeleteTitle"><section><header><h2 id="bookDeleteTitle">确认删除图书？</h2><button id="bookDeleteClose" aria-label="关闭">×</button></header><p id="bookDeleteText"></p><div class="delete-file-options"><label><input type="radio" name="deleteBookFileMode" value="keep" checked><span><b>仅从书库移除</b><small>保留实际图书文件</small></span></label><label id="deleteActualOption"><input type="radio" name="deleteBookFileMode" value="delete"><span><b>同时删除实际图书文件</b><small id="deleteActualDescription">文件将优先移入系统回收站</small></span></label></div><div class="delete-file-path" id="deleteFilePath"></div><p class="delete-file-warning" id="deleteFileWarning">删除会移除该书在全部自定义文件夹中的引用。此操作无法通过书架撤销。</p><footer><button class="secondary-button" id="bookDeleteCancel">取消</button><button class="primary-button danger-confirm" id="bookDeleteAccept">确认删除</button></footer></section></div>
+    <div class="library-context-menu hidden" id="libraryContextMenu" role="menu"></div>
+    <div class="reader-modal hidden" id="readerModal"><div class="reader-top"><button class="reader-back" id="readerBack">← <span>返回书架</span></button><button class="reader-tool" id="readerTocToggle">☷ <span>目录</span></button><button class="reader-tool" id="readerGalleryToggle">▧ <span>插图</span></button><button class="reader-tool" id="readerBookmarkAdd">☆ <span>书签</span></button><div class="reader-book-name" id="readerBookName"></div><div class="reader-chapter-controls"><button id="readerPrev" title="上一章">← 上一章</button><span id="readerChapterLabel">正文</span><button id="readerNext" title="下一章">下一章 →</button></div><button class="reader-tool" id="readerSettingsToggle">Aa <span>排版</span></button><div class="reader-controls"><button id="fontDown">A−</button><button id="fontUp">A+</button></div></div><div class="reader-layout"><aside class="reader-toc" id="readerToc"><div class="reader-toc-head"><strong>目录</strong><button id="readerTocClose" aria-label="关闭目录">×</button></div><div id="readerTocItems"></div></aside><aside class="reader-gallery" id="readerGallery"><div class="reader-toc-head"><strong>本书插图</strong><button id="readerGalleryClose" aria-label="关闭插图">×</button></div><div id="readerGalleryItems"></div></aside><aside class="reader-settings" id="readerSettings"><div class="reader-toc-head"><strong>阅读排版</strong><button id="readerSettingsClose" aria-label="关闭排版设置">×</button></div><label>字号 <span id="readerFontValue">17 px</span><input type="range" id="readerFontRange" min="14" max="30" value="17"></label><label>行距 <span id="readerLineValue">1.95</span><input type="range" id="readerLineRange" min="14" max="26" value="19"></label><label>阅读区域 <span id="readerWidthValue">760 px</span><input type="range" id="readerWidthRange" min="520" max="1000" step="20" value="760"></label><label class="reader-indent-option"><input type="checkbox" id="readerIndentToggle" checked> 段首缩进</label><label>纸张主题<select id="readerThemeSelect"><option value="paper">暖纸</option><option value="ivory">象牙白</option><option value="sepia">羊皮纸</option><option value="mint">薄荷绿</option><option value="gray">雾灰</option><option value="lavender">淡紫</option><option value="night">夜间</option><option value="forest">深林</option></select></label><section class="txt-tools hidden" id="txtTools"><h3>TXT 章节识别</h3><label>文本编码<select id="txtEncodingSelect"><option value="utf-8">UTF-8</option><option value="gb18030">简体中文（GB18030）</option><option value="big5">繁体中文（Big5）</option><option value="shift_jis">日文（Shift_JIS）</option><option value="utf-16le">UTF-16 LE</option></select></label><label>章节标题规则（正则）<input id="txtPatternInput" type="text" spellcheck="false" placeholder="留空使用默认规则"></label><button class="secondary-button" id="txtPreviewBtn">预览识别结果</button><div class="txt-preview" id="txtPreview"></div><button class="primary-button" id="txtApplyBtn">应用并重新识别</button></section></aside><aside class="reader-bookmarks" id="readerBookmarks"><div class="reader-toc-head"><strong>本书书签</strong><button id="readerBookmarksClose" aria-label="关闭书签">×</button></div><div id="readerBookmarkItems"></div></aside><main class="reader-body"><div class="reader-chapter-title" id="readerChapterTitle"></div><div class="reader-stage" id="readerStage"></div></main><div class="reader-lightbox" id="readerLightbox"><div class="lightbox-toolbar"><button id="readerImageScaleToggle">适应窗口</button><button id="readerImageLocate">定位到正文</button><button id="readerImageClose" aria-label="关闭插图">×</button></div><button id="readerImagePrev" class="lightbox-prev" aria-label="上一张插图">‹</button><img id="readerLightboxImage" alt=""><button id="readerImageNext" class="lightbox-next" aria-label="下一张插图">›</button><p id="readerLightboxCaption"></p></div></div></div>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>
