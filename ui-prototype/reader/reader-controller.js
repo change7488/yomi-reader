@@ -5,7 +5,7 @@ import { advanceReadingState } from './position-services.js';
 import { isAndroidApp } from '../platform/mobile-shell.js';
 import { renderMobilePdf } from '../platform/pdf-viewer.js';
 
-export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard }) {
+export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn }) {
   function currentReaderStyle() { return state.readerBook?.readerStyle || { fontSize: 17, lineHeight: 1.95, width: 1400, sideMargin: 32, indent: true, theme: 'paper', turnMode: 'page' }; }
   function applyReaderStyle() {
     const style = { sideMargin: 32, ...currentReaderStyle() }, stage = $('readerStage');
