@@ -89,3 +89,31 @@ Windows EPUB/TXT：方向键左/上上一页、右/下下一页；PageUp/PageDow
 - 手机阅读中默认进入沉浸模式，隐藏状态栏和导航栏；阅读器排版面板中可关闭「沉浸阅读」选项，退出阅读器后系统栏自动恢复。桌面端不使用 Android 原生状态栏功能。
 
 新增平台能力只能加入 `platform/` 或 `mobile/native/`，不要在书籍格式解析器里直接调用原生存储 API。
+
+## 字体系统 v0.3.0
+
+字体功能只在共享前端中实现一次：
+
+- `ui-prototype/fonts/catalog.json`：固定的 20 款 OFL 字体清单（包含来源、文件大小、SHA-256、中文覆盖数）。
+- `ui-prototype/fonts/catalog.js`：前端 UI 使用的精简元数据。
+- `ui-prototype/fonts/font-manager.js`：字体校验、从 IndexedDB 加载/保存、预览、选择、删除与回退。
+- `ui-prototype/fonts/font-manager.css`：Windows/Android 共用排版控件与响应式字体卡片。
+- `scripts/sync-fonts.mjs`：从固定版本字体仓库下载 20 款字体及授权；逐一校验 SHA-256，已经缓存时离线可运行，不将二进制提交 Git。
+- `ui-prototype/fonts/builtin/`、`fonts/licenses/`：构建时生成的本地资源文件，均由 `.gitignore` 忽略，但会进入 Windows 安装包和 Android APK。
+- `mobile/native/ReaderFilesPlugin.java`：Android 原生字体选择器（SAF），同样支持 EPUB/TXT/PDF 多文件导入，整个流程不要求广泛存储权限。
+
+```powershell
+npm ci
+npm run fonts:sync           # 首次约下载 30 MiB 字体文件及许可证
+npm run check                # 仅代码单测/语法，不依赖下载字体
+npm start                    # 若字体缓存齐全，则无需联网
+npm run dist:win             # 打包前自动同步字体
+npm run android:apk          # 打包前自动同步字体 + Android 图标
+```
+
+**兼容性**：IndexedDB v3 → v4 增加 `customFonts` 表，保留所有原有书籍、阅读位置和收藏。用户导入字体仅保存在应用私有 IndexedDB，不被提交或上传。单字体 ≤16MiB，自定义最多 40 项；文件必须匹配 TTF、OTF、WOFF 或 WOFF2 的真实文件头。对较少见的汉字，官方字体子集无法覆盖时会回退系统字体。
+
+**图标**：Windows 安装包使用 `assets/yomi-reader.ico`，Android 构建脚本将相同设计的 `assets/yomi-reader.png` 复制进 `mobile/android/app/src/main/res/drawable-nodpi/` 并配置 AndroidManifest `icon/roundIcon`。请不要再制作另一份 Android 默认图标。
+
+**第三方许可**：20 款字体来自 <https://github.com/joeseesun/qiaomu-cover-fonts> v1.0.0，原字体设计者与许可详见 `catalog.json` 和下载后的 `fonts/licenses/*.txt`。修改字体来源时必须同步更新 SHA-256、许可证和版权说明。
+
