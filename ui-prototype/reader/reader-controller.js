@@ -4,6 +4,7 @@ import { parseReaderDocument } from './index.js';
 import { advanceReadingState } from './position-services.js';
 import { isAndroidApp } from '../platform/mobile-shell.js';
 import { renderMobilePdf } from '../platform/pdf-viewer.js';
+import { installReadingSurface } from './reading-interactions.js';
 
 export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn }) {
   function currentReaderStyle() { return state.readerBook?.readerStyle || { fontSize: 17, lineHeight: 1.95, width: 1400, sideMargin: 32, indent: true, theme: 'paper', turnMode: 'page' }; }
@@ -388,6 +389,8 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     }
     if (!book.file) { toast('找不到这本书的本地副本，请在设置中迁移或重新导入。', 'error'); return; }
     releaseReaderAssets(); state.readerBook = book; state.readerChapters = []; markReaderActivity(); $('readerModal').classList.remove('hidden'); $('readerBookName').textContent = book.title;
+    $('readerModal').classList.toggle('reader-ui-hidden', isAndroidApp());
+    window.dispatchEvent(new CustomEvent('yomi:reader-active', { detail: { active: true } }));
     $('readerToc').classList.remove('open'); $('readerGallery').classList.remove('open'); $('readerSettings').classList.remove('open'); $('readerBookmarks').classList.remove('open'); $('readerNotesPanel').classList.remove('open'); $('readerSearchPanel').classList.remove('open'); $('readerPositionHistory').classList.remove('open'); $('readerLightbox').classList.remove('open'); $('readerTocItems').innerHTML = ''; $('readerChapterTitle').textContent = '';
     clearTimeout(state.readerSearchTimer); $('readerSearchInput').value = ''; state.readerSearchResults = []; renderReaderSearch('');
     const stage = $('readerStage'); stage.innerHTML = ''; stage.onscroll = null;
@@ -467,12 +470,22 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     if (state.speechActive) speechSynthesis.cancel(); state.speechActive = false;
     onboarding.onReaderClosed();
     state.activeReaderSessionId = ''; state.readerBook = null; state.readerChapters = [];
+    window.dispatchEvent(new CustomEvent('yomi:reader-active', { detail: { active: false } }));
+    $('readerModal').classList.remove('reader-ui-hidden');
     $('readerModal').classList.add('hidden'); $('readerLightbox').classList.remove('open'); $('readerPositionHistory').classList.remove('open'); $('readerSeekPreview').classList.add('hidden');
     releaseReaderAssets(); renderDashboard();
   }
 
   // Reader-specific interactions are isolated from the library/shell bindings.
   function bindReaderEvents() {
+    installReadingSurface({
+      modal: $('readerModal'),
+      body: $('readerModal').querySelector('.reader-body'),
+      canTurnPage: () => Boolean(state.readerChapters.length),
+      movePage: moveReaderPage,
+      markActivity: markReaderActivity,
+      mobile: isAndroidApp()
+    });
     $('readerBack').onclick = closeReader;
     $('readerFullscreenToggle').onclick = toggleReaderFullscreen;
     $('readerTocToggle').onclick = () => $('readerToc').classList.toggle('open'); $('readerTocClose').onclick = () => $('readerToc').classList.remove('open');
