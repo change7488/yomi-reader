@@ -461,7 +461,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
       const folderMenuButton = e.target.closest('[data-folder-menu]'); if (folderMenuButton) showFolderMenu(e, folderMenuButton.dataset.folderMenu);
       const bookMenuButton = e.target.closest('[data-book-menu]'); if (bookMenuButton) showBookMenu(e, bookMenuButton.dataset.bookMenu);
       const selection = e.target.closest('[data-book-select]'); if (selection) { if (selection.checked) state.selectedBooks.add(selection.dataset.bookSelect); else state.selectedBooks.delete(selection.dataset.bookSelect); updateSelectionToolbar(); }
-      const open = e.target.closest('[data-open]'); if (open) openBook(open.dataset.open);
+      const open = e.target.closest('[data-open]'); if (open) openBook(open.dataset.open).catch(error => { console.error('打开书籍失败', error); toast('无法打开书籍：' + (error?.message || error), 'error'); });
       const fav = e.target.closest('[data-fav]'); if (fav) { const b = state.books.find(x => x.id === fav.dataset.fav); if (b) { b.favorite = !b.favorite; await saveBook(b); } else toast('示例书籍仅展示书架布局。'); }
       const remove = e.target.closest('[data-remove]'); if (remove) removeBook(remove.dataset.remove);
     });
