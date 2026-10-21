@@ -1,4 +1,5 @@
 import { parseReaderDocument, readBookMetadata, validateBookFile } from './reader/index.js';
+import { createOnboarding } from './onboarding/onboarding.js';
 import { addFolderLinks, deleteBookEntity, deleteFolderTree, removeFolderLinks } from './library-model.js';
 import { advanceReadingState, NavigationHistoryService, ReadingPositionService } from './reader/position-services.js';
 
@@ -35,6 +36,12 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     update();
   }
   const state = { db: null, books: [], tasks: [], folders: [], folderBooks: [], readingStates: new Map(), selectedBooks: new Set(), collapsedFolders: new Set(), route: 'all', filter: 'all', query: '', sortRecent: true, folder: null, scanning: false, folderImportPath: '', folderImportItems: [], libraryFolder: '', contextBookId: '', contextFolderId: '', folderEditorParentId: null, pendingAddBookIds: [], editingFolderId: '', readerSize: 17, readerBook: null, readerChapters: [], readerChapterIndex: 0, readerImages: [], readerObjectUrls: [], activeImageIndex: 0, progressTimer: null, speechActive: false, wheelDelta: 0, wheelTimer: null, turnTimer: null, pendingNoteQuote: '', readingAnalytics: { days: {}, books: {} }, readerLastActivity: 0, analyticsLastTick: Date.now(), analyticsTimer: null, positionService: null, navigationService: new NavigationHistoryService(), activeReaderSessionId: '', restoringPosition: false, pendingSeekValue: null, undoNoticeTimer: null, readerSearchResults: [], readerSearchTimer: null };
+
+  const onboarding = createOnboarding({
+    navigateHome: () => navigate('home'),
+    hasBooks: () => state.books.length > 0,
+    getReaderFormat: () => state.readerBook?.ext || null
+  });
 
   function openDB() {
     return new Promise((resolve, reject) => {
@@ -192,7 +199,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     const book = { id, name: file.name, title: meta.title, author: meta.author, ext, file, nativePath, storageMode: nativePath ? 'managed' : 'indexeddb', coverBlob: meta.coverBlob, hash, progress: 0, favorite: !!options.favorite, lastRead: 0, addedAt: now, source };
     await put('books', book); state.books.push(book);
     await addTask({ id: `task-${id}`, name: file.name, ext, status: 'done', progress: 100, message: '已导入本地图书馆', createdAt: now, imported: true });
-    render(); if (!options.quiet) toast(`《${book.title}》已添加到书架。`); return book;
+    render(); onboarding.onBookImported(); if (!options.quiet) toast(`《${book.title}》已添加到书架。`); return book;
   }
   async function importFiles(files, source) {
     const list = [...files];
@@ -888,6 +895,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
       if (startAnchor) { const session = state.navigationService.beginSession(book.id, startAnchor); state.activeReaderSessionId = session.id; await persistReaderPosition(true); }
     } else { await put('books', book); }
     renderReaderPositionHistory();
+    onboarding.onReaderReady(ext);
   }
   async function closeReader() {
     const book = state.readerBook; if (!book) { $('readerModal').classList.add('hidden'); return; }
@@ -901,6 +909,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     } else await state.positionService?.flush(book.id).catch(error => console.warn('关闭时保存队列失败', error));
     if (document.fullscreenElement === $('readerModal')) await document.exitFullscreen().catch(() => {});
     if (state.speechActive) speechSynthesis.cancel(); state.speechActive = false;
+    onboarding.onReaderClosed();
     state.activeReaderSessionId = ''; state.readerBook = null; state.readerChapters = [];
     $('readerModal').classList.add('hidden'); $('readerLightbox').classList.remove('open'); $('readerPositionHistory').classList.remove('open'); $('readerSeekPreview').classList.add('hidden');
     releaseReaderAssets(); renderDashboard();
@@ -1123,6 +1132,17 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     $('downloadTable').addEventListener('click', e => { const button = e.target.closest('[data-import-task]'); if (button) importDesktopTask(button.dataset.importTask); });
     $('clearLibraryBtn').onclick = async () => { if (!await showConfirm('清空书架？', '这会移除全部书目、阅读进度、书签、笔记和文件夹关联；文件夹本身和软件管理目录中的实际文件会保留。', '清空书架')) return; try { const tx = state.db.transaction(['books','folderBooks','readingStates'], 'readwrite'); tx.objectStore('books').clear(); tx.objectStore('folderBooks').clear(); tx.objectStore('readingStates').clear(); await new Promise((resolve,reject)=>{tx.oncomplete=resolve;tx.onerror=tx.onabort=()=>reject(tx.error);}); state.books=[];state.folderBooks=[];state.readingStates.clear();state.selectedBooks.clear();render();toast('书架记录已清空，实际图书文件保留。'); } catch(error) { toast(`清空失败：${error.message || error}`, 'error'); } };
     $('settingsBtn').onclick = () => navigate('settings');
+    const helpBtn = document.createElement('button');
+    helpBtn.id = 'yomiHelpBtn'; helpBtn.className = 'sidebar-settings';
+    helpBtn.innerHTML = '<span class="gear">?</span> 使用帮助';
+    helpBtn.onclick = () => onboarding.showHelp();
+    $('settingsBtn').before(helpBtn);
+    const helpRow = document.createElement('div');
+    helpRow.className = 'settings-card';
+    helpRow.innerHTML = '<div><strong>使用帮助与新手引导</strong><span>操作指南、快捷键、阅读进度说明，随时可以重新体验。</span></div><button class="secondary-button" id="yomiSettingsHelp">查看帮助</button><button class="secondary-button" id="yomiReplayGuide">重看新手引导</button>';
+    $('settingsPage').append(helpRow);
+    $('yomiSettingsHelp').onclick = () => onboarding.showHelp();
+    $('yomiReplayGuide').onclick = () => onboarding.start();
     $('themeBtn').onclick = () => { const panel = $('appearancePopover'); panel.classList.toggle('hidden'); $('themeBtn').setAttribute('aria-expanded', String(!panel.classList.contains('hidden'))); };
     document.querySelectorAll('[data-palette-choice]').forEach(button => button.onclick = () => { appearance.palette = button.dataset.paletteChoice; appearance.accent = ''; saveAppearance(); });
     document.querySelectorAll('[data-mode-choice]').forEach(button => button.onclick = () => { appearance.mode = button.dataset.modeChoice; saveAppearance(); });
@@ -1316,6 +1336,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     if (folder?.value) { state.folder = folder.value; try { if (await state.folder.queryPermission({ mode: 'read' }) === 'granted') { $('watchFolderText').textContent = state.folder.name; beginScan(); } else $('watchFolderText').textContent = `${state.folder.name}（点击重新授权）`; } catch (_) {} }
     $('dockOpen').style.display = state.tasks.length ? 'inline-block' : '';
     navigate('home'); render();
+    onboarding.maybeAutoStart({ booksCount: state.books.length, tasksCount: state.tasks.length });
   }
   init();
 })();
