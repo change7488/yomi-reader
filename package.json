@@ -12,7 +12,9 @@
     "test": "node --test ui-prototype/reader/*.test.mjs ui-prototype/library-model.test.mjs ui-prototype/onboarding/*.test.mjs electron/*.test.cjs",
     "test:ui": "electron electron/ui-smoke.cjs",
     "test:reader": "node --test ui-prototype/reader/*.test.mjs",
-    "dist:win": "electron-builder --win nsis"
+    "dist:win": "electron-builder --win nsis",
+    "check": "npm run check:syntax && npm test",
+    "check:syntax": "node --check electron/main.cjs && node --check ui-prototype/app.js && node --check ui-prototype/library/library-view.js && node --check ui-prototype/home/dashboard-view.js && node --check ui-prototype/analytics/reading-analytics.js && node --check ui-prototype/downloads/task-view.js && node --check ui-prototype/onboarding/onboarding.js"
   },
   "devDependencies": {
     "electron": "45.0.0",
