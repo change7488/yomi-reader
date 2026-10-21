@@ -12,9 +12,9 @@
 
 ## 下载 Windows 预览版
 
-前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases/latest) 下载最新版安装程序：
+前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases) 查看版本；当前 Windows x64 预览版为 v0.2.2：
 
-[下载 Yomi Reader Windows 安装程序](https://github.com/change7488/yomi-reader/releases/latest/download/Yomi-Reader-0.2.2-x64-Setup.exe)
+[下载 Yomi Reader v0.2.2 Windows 安装程序](https://github.com/change7488/yomi-reader/releases/download/v0.2.2/Yomi-Reader-0.2.2-x64-Setup.exe)
 
 运行安装程序并按提示完成安装。预览版面向 Windows x64；尚未进行代码签名，Windows 可能显示发布者验证提示。
 
