@@ -1,4 +1,6 @@
 import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
+import { initMobileShell, isAndroidApp } from './platform/mobile-shell.js';
+import { renderMobilePdf } from './platform/pdf-viewer.js';
 import { createLibraryView } from './library/library-view.js';
 import { createDashboardView } from './home/dashboard-view.js';
 import { createReadingAnalytics } from './analytics/reading-analytics.js';
@@ -288,6 +290,7 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     $('pageTitle').innerHTML = `${esc(titleFor(route))}<span class="heading-dot">.</span>`;
     if (!['home','favorites','history'].includes(route) && !route.startsWith('folder:') && !['online','public','downloads','local','settings'].includes(route)) route = 'all';
     state.route = route; render();
+    document.querySelectorAll('[data-mobile-view]').forEach(item => item.setAttribute('aria-current', String(item.dataset.mobileView === route ? 'page' : 'false')));
   }
   async function persistFolder(folder, bookIds = []) {
     const existing = folderById(folder.id), next = { ...folder, sortOrder: Number(folder.sortOrder ?? (existing?.sortOrder ?? state.folders.filter(item => (item.parentId || null) === (folder.parentId || null)).length)) };
@@ -719,7 +722,28 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     $('txtTools').classList.add('hidden');
     renderReaderNotes();
     if (ext === 'pdf') {
-      const frame = document.createElement('iframe'); frame.title = book.title; frame.src = URL.createObjectURL(book.file); state.readerObjectUrls.push(frame.src); stage.append(frame);
+      if (isAndroidApp()) {
+        try {
+          stage.__yomiPdfCleanup = await renderMobilePdf({ stage, file: book.file });
+          const restore = Math.max(0, Math.min(1, Number(book.pdfScrollRatio) || 0));
+          requestAnimationFrame(() => { stage.scrollTop = (stage.scrollHeight - stage.clientHeight) * restore; });
+          stage.onscroll = () => {
+            const ratio = stage.scrollTop / Math.max(1, stage.scrollHeight - stage.clientHeight);
+            book.pdfScrollRatio = Math.min(1, Math.max(0, ratio));
+            book.progress = Math.floor(book.pdfScrollRatio * 100);
+            clearTimeout(state.progressTimer);
+            state.progressTimer = setTimeout(() => put('books', book).catch(error => console.warn('保存 PDF 阅读进度失败', error)), 1200);
+          };
+        } catch (error) {
+          stage.textContent = '无法打开此 PDF：' + (error.message || error);
+          console.warn('Android PDF 预览失败', error);
+        }
+      } else {
+        const frame = document.createElement('iframe'); frame.title = book.title;
+        frame.src = URL.createObjectURL(book.file);
+        state.readerObjectUrls.push(frame.src);
+        stage.append(frame);
+      }
       $('readerChapterLabel').textContent = 'PDF 文档'; $('readerChapterTitle').textContent = 'PDF 阅读预览'; $('readerPrev').disabled = $('readerNext').disabled = $('readerBookmarkAdd').disabled = true; $('readerTocToggle').disabled = $('readerGalleryToggle').disabled = true; $('readerProgressRange').disabled = $('readerProgressPrev').disabled = $('readerProgressNext').disabled = true;
       $('readerDockSearch').disabled = true;
     } else {
@@ -758,6 +782,9 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     await state.navigationTask?.catch(() => {});
     if (state.readerBook !== book) return;
     clearTimeout(state.progressTimer);
+    $('readerStage').__yomiPdfCleanup?.();
+    $('readerStage').__yomiPdfCleanup = null;
+    $('readerStage').onscroll = null;
     if (state.readerChapters.length) {
       const anchor = captureReaderAnchor();
       if (state.activeReaderSessionId) state.navigationService.endSession(book.id, state.activeReaderSessionId, anchor);
@@ -1188,6 +1215,8 @@ import { advanceReadingState, NavigationHistoryService, ReadingPositionService }
     catch (e) { console.warn('读取阅读统计失败', e); }
     initEvents();
     initAppearance();
+    initMobileShell({ navigate, closeReader, readerIsOpen: () => Boolean(state.readerBook),
+      canTurnPage: () => state.readerChapters.length > 0, movePage: moveReaderPage });
     const sidebarPreference = localStorage.getItem('libra-sidebar-collapsed');
     document.body.classList.toggle('sidebar-collapsed', sidebarPreference !== '0');
     $('sidebarCollapseBtn').title = sidebarPreference === '0' ? '收起导航' : '展开导航';
