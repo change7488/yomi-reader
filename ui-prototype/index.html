@@ -2,8 +2,8 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <meta name="theme-color" content="#08090b" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#f7f6f2" />
     <meta http-equiv="Content-Security-Policy" content="default-src 'self' data: blob: https:; img-src 'self' data: blob: https:; style-src 'self' 'unsafe-inline'; font-src 'self' data: blob:; script-src 'self'; connect-src 'self' https:; frame-src https: blob:; object-src 'none'; base-uri 'self'; form-action 'self' https:" />
     <title>Yomi Reader</title>
     <link rel="stylesheet" href="styles.css" />
@@ -15,7 +15,7 @@
     <div class="app-shell">
       <aside class="sidebar">
         <button class="brand" data-view="all" aria-label="Yomi Reader 首页">
-          <span class="brand-mark"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></svg></span>
+          <span class="brand-mark"><img src="assets/yomi-mark.svg" alt="" /></span>
           <span>Yomi Reader</span>
         </button>
 
@@ -52,7 +52,7 @@
 
       <main class="main-area">
         <header class="topbar">
-          <div class="mobile-brand"><span class="yomi-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 0 1 6.5 3H20v16H6.5A2.5 2.5 0 0 0 4 21.5z"/><path d="M4 5.5v16M8 7h8M8 11h8"/></svg></span><strong>Yomi Reader</strong></div>
+          <div class="mobile-brand"><img class="yomi-mark-image" src="assets/yomi-mark.svg" alt="" aria-hidden="true" /><strong>Yomi Reader</strong></div>
           <label class="search-box" id="searchBox">
             <svg viewBox="0 0 24 24"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 5 5"/></svg>
             <input id="searchInput" type="search" placeholder="搜索书名、作者、ISBN..." autocomplete="off" />
@@ -82,7 +82,7 @@
             </div>
             <div class="heading-actions">
               <button class="secondary-button" id="sortBtn"><svg viewBox="0 0 24 24"><path d="M4 6h16M7 12h10m-7 6h4"/></svg> 最近添加 <span class="chevron">⌄</span></button>
-              <button class="primary-button" id="importBtn"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4"/></svg> 导入图书</button>
+              <button class="secondary-button" id="libraryImportFolderBtn" type="button" title="按格式扫描文件夹">文件夹导入</button><button class="primary-button" id="importBtn"><svg viewBox="0 0 24 24"><path d="M12 16V4m0 0L7 9m5-5 5 5M5 15v4h14v-4"/></svg> 导入图书</button>
               <input type="file" id="fileInput" accept=".epub,.pdf,.txt" multiple hidden /><input type="file" id="folderInput" webkitdirectory directory multiple hidden />
             </div>
           </div>
