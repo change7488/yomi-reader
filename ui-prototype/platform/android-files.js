@@ -26,6 +26,17 @@ export async function chooseAndroidFiles() {
   const result = await plugin.chooseFiles();
   return result?.cancelled ? [] : result?.files || [];
 }
+export async function chooseAndroidFonts() {
+  const plugin = androidFilePicker();
+  if (!plugin?.chooseFonts) throw new Error('当前 Android 版本不支持导入字体文件');
+  const result = await plugin.chooseFonts();
+  if (result?.cancelled) return [];
+  const files = [];
+  for (const entry of result?.files || []) {
+    files.push(await loadAndroidBook(entry));
+  }
+  return files;
+}
 export function decodeBase64Bytes(value) {
   const raw = atob(value);
   const bytes = new Uint8Array(raw.length);
