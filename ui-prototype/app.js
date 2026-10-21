@@ -1,6 +1,6 @@
 import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
 import { initMobileShell } from './platform/mobile-shell.js';
-import { androidFilePicker, chooseAndroidFolder, scanAndroidFolder, chooseAndroidFiles, loadAndroidBook } from './platform/android-files.js';
+import { androidFilePicker, chooseAndroidFolder, scanAndroidFolder, chooseAndroidFiles, chooseAndroidFonts, loadAndroidBook } from './platform/android-files.js';
 import { pageDirectionForKey } from './reader/reading-interactions.js';
 import { createReaderController } from './reader/reader-controller.js';
 import { createLibraryView } from './library/library-view.js';
@@ -12,7 +12,6 @@ import { createOnboarding } from './onboarding/onboarding.js';
 import { addFolderLinks, deleteBookEntity, deleteFolderTree, removeFolderLinks } from './library-model.js';
 import { NavigationHistoryService, ReadingPositionService } from './reader/position-services.js';
 import { createFontManager } from './fonts/font-manager.js';
-import { androidFilePicker, chooseAndroidFonts } from './platform/android-files.js';
 
 (() => {
   'use strict';
