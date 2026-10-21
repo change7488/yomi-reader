@@ -1,0 +1,9 @@
+{
+  "appId": "com.change7488.yomireader",
+  "appName": "Yomi Reader",
+  "webDir": "dist/android",
+  "android": {
+    "allowMixedContent": false,
+    "backgroundColor": "#f6faf8"
+  }
+}
