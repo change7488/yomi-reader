@@ -9,7 +9,7 @@
   "private": true,
   "scripts": {
     "start": "electron .",
-    "test": "node --test ui-prototype/reader/*.test.mjs ui-prototype/library-model.test.mjs electron/*.test.cjs",
+    "test": "node --test ui-prototype/reader/*.test.mjs ui-prototype/library-model.test.mjs ui-prototype/onboarding/*.test.mjs electron/*.test.cjs",
     "test:ui": "electron electron/ui-smoke.cjs",
     "test:reader": "node --test ui-prototype/reader/*.test.mjs",
     "dist:win": "electron-builder --win nsis"
