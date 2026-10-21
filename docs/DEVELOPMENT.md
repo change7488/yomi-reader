@@ -7,7 +7,7 @@
 ```text
 ui-prototype/
   app.js             启动和页面/阅读协调（逐步缩小）
-  reader/            EPUB/TXT 解析和进度锚点（平台共用）
+  reader/            EPUB/TXT 解析、进度锚点和共享阅读控制器
   storage/           IndexedDB 表结构与持久化
   library/           书架列表、筛选和卡片
   home/              首页
