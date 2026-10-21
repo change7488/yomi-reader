@@ -1,0 +1,15 @@
+{
+  "name": "yomi-reader-android-shell",
+  "version": "0.2.3",
+  "private": true,
+  "description": "Android shell for the shared Yomi Reader web frontend",
+  "dependencies": {
+    "@capacitor/core": "8.5.3",
+    "@capacitor/android": "8.5.3",
+    "@capacitor/app": "8.1.2"
+  },
+  "devDependencies": {
+    "@capacitor/cli": "8.5.3",
+    "pdfjs-dist": "6.4.299"
+  }
+}
