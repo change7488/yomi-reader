@@ -16,6 +16,10 @@ app.whenReady().then(async () => {
       const click = selector => document.querySelector(selector).click();
       const checks = {};
       checks.home = !$('dashboard').classList.contains('hidden') && $('dashboardStats').children.length === 4;
+      checks.onboardingWelcome = !!document.querySelector('#yomiWelcomeTitle');
+      document.querySelector('[data-guide-skip]')?.click();
+      checks.onboardingSkip = !document.querySelector('.yomi-guide-layer') && !!JSON.parse(localStorage.getItem('yomi-onboarding-v1'))?.completed;
+      checks.styles = getComputedStyle(document.querySelector('.sidebar')).position === 'fixed';
       click('[data-view="all"]');
       checks.library = !$('libraryView').classList.contains('hidden') && $('bookGrid').children.length > 0;
       click('.view-toggle:nth-of-type(2)');
@@ -39,6 +43,10 @@ app.whenReady().then(async () => {
       checks.folderCancel = $('folderEditorModal').classList.contains('hidden');
       click('#settingsBtn');
       checks.settings = !$('settingsPage').classList.contains('hidden');
+      checks.helpEntry = !!$('yomiSettingsHelp') && !!$('yomiReplayGuide');
+      $('yomiSettingsHelp').click();
+      checks.helpOpens = !!document.querySelector('#yomiHelpTitle');
+      document.querySelector('[data-guide-close]')?.click();
       checks.readerControls = !!$('readerModal') && !!$('readerTocToggle') && !!$('readerSettingsToggle');
       const sample = new File(['第一章 初见\\n\\n这是第一段。\\n\\n这是第二段。'], '界面测试.txt', { type:'text/plain' });
       const transfer = new DataTransfer(); transfer.items.add(sample);
