@@ -71,6 +71,9 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   // Hardware volume keys are intercepted by a small native Capacitor plugin only while reading.
   // On the bookshelf the buttons retain their normal system-volume behavior.
   const readerKeys = window.Capacitor?.Plugins?.ReaderKeys;
+  // Match the home screen's paper palette before the first book is opened.
+  readerKeys?.setImmersive?.({ enabled: false })
+    ?.catch?.(error => console.warn('初始化 Android 状态栏失败', error));
   const immersivePreference = 'yomi-immersive-bars';
   const immersiveLabel = document.createElement('label');
   immersiveLabel.className = 'yomi-immersive-toggle';
