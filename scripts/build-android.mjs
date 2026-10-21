@@ -22,6 +22,7 @@ function cap(args) {
 if (!existsSync(resolve('mobile/node_modules/@capacitor/android/package.json')) || !existsSync(resolve('mobile/node_modules/pdfjs-dist/build/pdf.mjs'))) {
   npmRun(['run', 'android:deps']);
 }
+run('下载并校验 20 款离线阅读字体', process.execPath, ['scripts/sync-fonts.mjs']);
 run('准备共享网页资源', process.execPath, ['scripts/prepare-android.mjs']);
 if (!existsSync(resolve('mobile/android/gradlew')) && !existsSync(resolve('mobile/android/gradlew.bat'))) cap(['add','android']);
 cap(['sync','android']);
