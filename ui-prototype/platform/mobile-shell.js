@@ -63,6 +63,25 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
     if (readerIsOpen()) { void closeReader(); return; }
     navigate('home'); updateActive('home');
   };
+  // Hardware volume keys are intercepted by a small native Capacitor plugin only while reading.
+  // On the bookshelf the buttons retain their normal system-volume behavior.
+  const readerKeys = window.Capacitor?.Plugins?.ReaderKeys;
+  const setNativeKeys = event => {
+    readerKeys?.setEnabled?.({ enabled: Boolean(event.detail?.active) })
+      ?.catch?.(error => console.warn('切换音量键翻页失败', error));
+  };
+  const onVolumeTurn = event => {
+    if (!readerIsOpen() || !canTurnPage()) return;
+    const direction = Number(event.direction);
+    if (direction === 1 || direction === -1) movePage(direction);
+  };
+  window.addEventListener('yomi:reader-active', setNativeKeys);
+  let readerKeysListener = null;
+  if (readerKeys?.addListener) {
+    Promise.resolve(readerKeys.addListener('pageTurn', onVolumeTurn))
+      .then(handle => { readerKeysListener = handle; })
+      .catch(error => console.warn('绑定音量键翻页失败', error));
+  }
   const appPlugin = window.Capacitor?.Plugins?.App;
   let nativeListener = null;
   if (appPlugin?.addListener) {
@@ -73,6 +92,9 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   const avatar = document.getElementById('profileBtn');
   if (avatar) avatar.onclick = () => { navigate('settings'); updateActive('settings'); };
   return () => {
+    readerKeys?.setEnabled?.({ enabled: false })?.catch?.(() => {});
+    window.removeEventListener('yomi:reader-active', setNativeKeys);
+    readerKeysListener?.remove?.();
     document.removeEventListener('backbutton', onBack);
     stage.removeEventListener('touchstart', onStart);
     stage.removeEventListener('touchend', onEnd);
