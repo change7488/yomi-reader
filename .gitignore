@@ -27,3 +27,6 @@ android/
 # Offline OFL font bundle downloaded by npm run fonts:sync (not committed as binaries).
 ui-prototype/fonts/builtin/
 ui-prototype/fonts/licenses/
+
+# Generated copy of the Windows original app logo used by both UI shells.
+ui-prototype/assets/yomi-reader.png
