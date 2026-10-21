@@ -1,4 +1,8 @@
-# Yomi Reader
+<div align="center">
+  <img src="assets/yomi-reader.png" alt="Yomi Reader 图标：黑发少女阅读青绿色书籍" width="144" />
+  <h1>Yomi Reader</h1>
+  <p>为轻小说爱好者打造的 Windows 本地阅读器</p>
+</div>
 
 一个面向 Windows 的本地轻小说阅读器。当前桌面版使用 Electron、HTML、CSS 和 JavaScript；仓库还保留了早期的 Python BookBridge 实验代码。项目仍处于预览阶段。
 
@@ -12,9 +16,9 @@
 
 ## 下载 Windows 预览版
 
-前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases) 查看版本；当前 Windows x64 预览版为 v0.2.2：
+前往 [GitHub Releases](https://github.com/change7488/yomi-reader/releases) 查看版本；当前 Windows x64 预览版为 v0.2.3：
 
-[下载 Yomi Reader v0.2.2 Windows 安装程序](https://github.com/change7488/yomi-reader/releases/download/v0.2.2/Yomi-Reader-0.2.2-x64-Setup.exe)
+[下载 Yomi Reader v0.2.3 Windows 安装程序](https://github.com/change7488/yomi-reader/releases/download/v0.2.3/Yomi-Reader-0.2.3-x64-Setup.exe)
 
 运行安装程序并按提示完成安装。预览版面向 Windows x64；尚未进行代码签名，Windows 可能显示发布者验证提示。
 

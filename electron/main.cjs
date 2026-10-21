@@ -8,6 +8,7 @@ const APP_SCHEME = 'libra';
 const ONLINE_PARTITION = 'persist:libra-online-library';
 const CHROME_USER_AGENT = `Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/${process.versions.chrome} Safari/537.36`;
 const WEB_ROOT = path.resolve(__dirname, '..', 'ui-prototype');
+const APP_ICON = path.resolve(__dirname, '..', 'assets', 'yomi-reader.ico');
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'desktop-settings.json');
 const LOG_FILE = () => path.join(app.getPath('userData'), 'libra-reader.log');
 let mainWindow;
@@ -71,6 +72,7 @@ function attachOnlineWindowRules(win) {
         minWidth: 760,
         minHeight: 560,
         title: '在线书库 · Libra Reader',
+        icon: APP_ICON,
         backgroundColor: '#090a0c',
         autoHideMenuBar: true,
         webPreferences: {
@@ -112,6 +114,7 @@ function createOnlineWindow(rawUrl) {
     minWidth: 760,
     minHeight: 560,
     title: '在线书库 · Libra Reader',
+    icon: APP_ICON,
     backgroundColor: '#090a0c',
     autoHideMenuBar: true,
     webPreferences: {
@@ -218,6 +221,7 @@ function createMainWindow() {
     show: false,
     backgroundColor: '#090a0c',
     title: 'Libra Reader',
+    icon: APP_ICON,
     autoHideMenuBar: true,
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
