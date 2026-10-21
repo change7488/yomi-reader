@@ -1417,3 +1417,7 @@ button:focus-visible,input:focus-visible{
 }
 
 
+
+/* A single local logo asset across Electron and Android. */
+.brand-mark { width:33px; height:33px; flex:none; display:inline-grid; place-items:center; }
+.brand-mark img { width:33px; height:33px; object-fit:contain; border-radius:10px; }
