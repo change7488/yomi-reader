@@ -12,7 +12,7 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   if (!isAndroidApp()) return () => {};
   document.body.classList.add('platform-android');
   document.querySelector('.search-box kbd')?.remove();
-  document.getElementById('dashboardImportFolderBtn')?.classList.add('hidden');
+  document.getElementById('dashboardImportFolderBtn')?.classList.remove('hidden');
   document.getElementById('chooseLibraryPathBtn')?.classList.add('hidden');
   const nav = document.createElement('nav');
   nav.id = 'yomiMobileNav';
@@ -69,6 +69,8 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   const setNativeKeys = event => {
     readerKeys?.setEnabled?.({ enabled: Boolean(event.detail?.active) })
       ?.catch?.(error => console.warn('切换音量键翻页失败', error));
+    readerKeys?.setImmersive?.({ enabled: Boolean(event.detail?.active) })
+      ?.catch?.(error => console.warn('沉浸式状态栏切换失败', error));
   };
   const onVolumeTurn = event => {
     if (!readerIsOpen() || !canTurnPage()) return;
@@ -93,6 +95,7 @@ export function initMobileShell({ navigate, closeReader, readerIsOpen, movePage,
   if (avatar) avatar.onclick = () => { navigate('settings'); updateActive('settings'); };
   return () => {
     readerKeys?.setEnabled?.({ enabled: false })?.catch?.(() => {});
+    readerKeys?.setImmersive?.({ enabled: false })?.catch?.(() => {});
     window.removeEventListener('yomi:reader-active', setNativeKeys);
     readerKeysListener?.remove?.();
     document.removeEventListener('backbutton', onBack);
