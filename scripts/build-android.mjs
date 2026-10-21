@@ -27,7 +27,7 @@ if (!existsSync(resolve('mobile/android/gradlew')) && !existsSync(resolve('mobil
 cap(['sync','android']);
 run('设置 ARM64 构建参数', process.execPath, ['scripts/configure-android.mjs']);
 if (win) run('Gradle assembleDebug', command, ['/d','/s','/c','gradlew.bat','assembleDebug','--no-daemon'], resolve('mobile/android'));
-else run('Gradle assembleDebug', command, ['gradlew','assembleDebug','--no-daemon'], resolve('android'));
+else run('Gradle assembleDebug', command, ['gradlew','assembleDebug','--no-daemon'], resolve('mobile/android'));
 const from = resolve('mobile/android/app/build/outputs/apk/debug/app-debug.apk');
 if (!existsSync(from)) throw new Error('Gradle 返回成功，但找不到输出 APK：' + from);
 mkdirSync(resolve('release'), { recursive: true });
