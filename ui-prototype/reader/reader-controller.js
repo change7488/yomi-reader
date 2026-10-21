@@ -6,11 +6,12 @@ import { isAndroidApp } from '../platform/mobile-shell.js';
 import { renderMobilePdf } from '../platform/pdf-viewer.js';
 import { installReadingSurface } from './reading-interactions.js';
 
-export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn }) {
+export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn, fontManager, chooseFontFiles }) {
   function currentReaderStyle() { return state.readerBook?.readerStyle || { fontSize: 17, lineHeight: 1.95, width: 1400, sideMargin: 32, indent: true, theme: 'paper', turnMode: 'page' }; }
   function applyReaderStyle() {
     const style = { sideMargin: 32, ...currentReaderStyle() }, stage = $('readerStage');
     stage.style.fontSize = `${style.fontSize}px`; stage.style.lineHeight = String(style.lineHeight); stage.style.width = `min(${style.width}px, 100%)`;
+    fontManager.applyToStage(stage, style.fontId || fontManager.getDefaultId());
     stage.style.paddingLeft = `${style.sideMargin}px`; stage.style.paddingRight = `${style.sideMargin}px`;
     stage.classList.toggle('no-indent', !style.indent); $('readerModal').dataset.readerTheme = style.theme || 'paper';
     $('readerFontRange').value = style.fontSize; $('readerFontValue').textContent = `${style.fontSize} px`;
@@ -47,6 +48,7 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
   function installReaderControls() {
     $('readerModal').querySelector('.reader-top').insertAdjacentHTML('beforeend', '<button class="reader-tool reader-fullscreen" id="readerFullscreenToggle" title="切换全屏">⛶ <span>全屏</span></button>');
     $('readerSettings').querySelector('.reader-toc-head').insertAdjacentHTML('afterend', '<label>滚动方式<select id="readerTurnMode"><option value="page">滚动翻页（带动画）</option><option value="continuous">连续滚动</option></select></label>');
+    fontManager.attach($('readerSettings'), { reader: true, onSelect: id => updateReaderStyle('fontId', id), chooseFiles: chooseFontFiles });
     const widthLabel = $('readerWidthRange').closest('label');
     widthLabel.childNodes[0].textContent = '正文最大宽度 ';
     widthLabel.insertAdjacentHTML('afterend', '<label>正文左右留白 <span id="readerMarginValue">32 px</span><input type="range" id="readerMarginRange" min="0" max="240" step="4" value="32"></label><div class="reader-width-actions"><small>最大宽度控制正文栏宽度；左右留白控制文字距正文栏边缘的距离。</small><button id="readerWidthFillBtn" class="secondary-button">铺满窗口</button></div>');
@@ -394,7 +396,11 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     $('readerToc').classList.remove('open'); $('readerGallery').classList.remove('open'); $('readerSettings').classList.remove('open'); $('readerBookmarks').classList.remove('open'); $('readerNotesPanel').classList.remove('open'); $('readerSearchPanel').classList.remove('open'); $('readerPositionHistory').classList.remove('open'); $('readerLightbox').classList.remove('open'); $('readerTocItems').innerHTML = ''; $('readerChapterTitle').textContent = '';
     clearTimeout(state.readerSearchTimer); $('readerSearchInput').value = ''; state.readerSearchResults = []; renderReaderSearch('');
     const stage = $('readerStage'); stage.innerHTML = ''; stage.onscroll = null;
+    const fontId = book.readerStyle?.fontId || fontManager.getDefaultId();
+    fontManager.setReaderSelection(fontId);
+    await fontManager.ensure(fontId).catch(error => { console.warn('字体加载失败，使用系统字体', error); toast('字体资源不可用，已使用系统字体。', 'error'); });
     const ext = book.ext.toLowerCase();
+    $('readerSettings').querySelector('.yomi-font-manager')?.classList.toggle('hidden', ext === 'pdf');
     $('txtTools').classList.add('hidden');
     renderReaderNotes();
     if (ext === 'pdf') {
