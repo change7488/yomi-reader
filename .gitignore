@@ -17,3 +17,9 @@ Thumbs.db
 *.pdf
 *.txt
 !requirements.txt
+
+# Android is generated from the same web renderer (Capacitor 8).
+android/
+.gradle/
+*.apk
+*.aab
