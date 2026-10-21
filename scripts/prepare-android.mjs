@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const target = join(root, 'dist', 'android');
-const pdf = join(root, 'node_modules', 'pdfjs-dist', 'build');
+const pdf = join(root, 'mobile', 'node_modules', 'pdfjs-dist', 'build');
 for (const name of ['pdf.mjs', 'pdf.worker.mjs']) {
   if (!existsSync(join(pdf, name))) {
     throw new Error('缺少离线 PDF 引擎。请先运行 npm run android:deps。');
