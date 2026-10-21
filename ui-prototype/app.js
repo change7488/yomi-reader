@@ -164,7 +164,11 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     render(); onboarding.onBookImported(); if (!options.quiet) toast(`《${book.title}》已添加到书架。`); return book;
   }
   async function importFromPicker() {
-    if (!androidFilePicker()) { $('fileInput').click(); return; }
+    if (!androidFilePicker()) {
+      if (window.Capacitor?.isNativePlatform?.()) toast('当前安装包缺少原生多文件选择功能，请安装新版 APK。', 'error');
+      else $('fileInput').click();
+      return;
+    }
     try {
       const entries = await chooseAndroidFiles();
       if (!entries.length) return;
@@ -558,7 +562,11 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
           await scanImportFolder();
           return;
         }
-        if (!window.libraDesktop?.isDesktop) { $('folderInput').click(); return; }
+        if (!window.libraDesktop?.isDesktop) {
+          if (window.Capacitor?.isNativePlatform?.()) throw new Error('当前安装包不支持原生文件夹授权，请安装新版 APK。');
+          $('folderInput').click();
+          return;
+        }
         const folder = await window.libraDesktop.chooseImportFolder(); if (!folder) return;
         nativeAndroidFolder = false;
         state.folderImportPath = folder; $('folderImportPath').textContent = folder; await scanImportFolder();
