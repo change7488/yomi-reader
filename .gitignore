@@ -23,3 +23,7 @@ android/
 .gradle/
 *.apk
 *.aab
+
+# Offline OFL font bundle downloaded by npm run fonts:sync (not committed as binaries).
+ui-prototype/fonts/builtin/
+ui-prototype/fonts/licenses/
