@@ -2,12 +2,13 @@
 // Avoid renaming the database: existing users' shelves and reading progress live here.
 export function openLibraryDatabase(name) {
     return new Promise((resolve, reject) => {
-      const req = indexedDB.open(name, 3);
+      const req = indexedDB.open(name, 4);
       req.onupgradeneeded = event => {
         const db = req.result;
         if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('tasks')) db.createObjectStore('tasks', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('settings')) db.createObjectStore('settings', { keyPath: 'key' });
+        if (!db.objectStoreNames.contains('customFonts')) db.createObjectStore('customFonts', { keyPath: 'id' });
         if (!db.objectStoreNames.contains('folders')) db.createObjectStore('folders', { keyPath: 'id' });
         let readingStates;
         if (!db.objectStoreNames.contains('readingStates')) readingStates = db.createObjectStore('readingStates', { keyPath: 'bookId' });
