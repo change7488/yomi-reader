@@ -3,7 +3,7 @@ on:
   workflow_dispatch:
   push:
     branches:
-      - feature/first-run-onboarding
+      - main
   pull_request:
     branches:
       - main
