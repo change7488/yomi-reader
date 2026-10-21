@@ -1,5 +1,6 @@
 import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
 import { initMobileShell } from './platform/mobile-shell.js';
+import { androidFilePicker, chooseAndroidFolder, scanAndroidFolder, chooseAndroidFiles, loadAndroidBook } from './platform/android-files.js';
 import { pageDirectionForKey } from './reader/reading-interactions.js';
 import { createReaderController } from './reader/reader-controller.js';
 import { createLibraryView } from './library/library-view.js';
@@ -16,6 +17,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   const DB_NAME = 'libra-reader-preview';
   const ACCEPTED = new Set(['epub', 'pdf', 'txt']);
   let folderBrowserFiles = [];
+  let nativeAndroidFolder = false;
   const $ = (id) => document.getElementById(id);
   const appearance = { palette: 'mint', mode: 'light', accent: '' };
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -140,7 +142,7 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
   async function addFile(file, source = '本地导入', nativeSourcePath = '', options = {}) {
     const ext = await validate(file), hash = await hashFile(file);
     if (!options.allowDuplicate && state.books.some(book => book.hash === hash)) { if (!options.quiet) toast(`《${filenameTitle(file.name)}》已在书架中，跳过重复文件。`); return null; }
-    const now = Date.now(), id = `${hash.slice(0, 18)}-${now}`;
+    const now = Date.now(), id = `${hash.slice(0, 18)}-${crypto.randomUUID()}`;
     let meta = { title: filenameTitle(file.name), author: '', coverBlob: null };
     if (ext === 'epub') {
       try { const epub = await readBookMetadata(file, ext); meta = { ...meta, ...epub, title: epub.title || meta.title, author: epub.author || '' }; }
@@ -160,6 +162,26 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     await put('books', book); state.books.push(book);
     await addTask({ id: `task-${id}`, name: file.name, ext, status: 'done', progress: 100, message: '已导入本地图书馆', createdAt: now, imported: true });
     render(); onboarding.onBookImported(); if (!options.quiet) toast(`《${book.title}》已添加到书架。`); return book;
+  }
+  async function importFromPicker() {
+    if (!androidFilePicker()) { $('fileInput').click(); return; }
+    try {
+      const entries = await chooseAndroidFiles();
+      if (!entries.length) return;
+      let imported = 0, skipped = 0, failed = 0;
+      for (const entry of entries) {
+        try {
+          const book = await addFile(await loadAndroidBook(entry), '本地导入', '', { quiet: true });
+          if (book) imported++; else skipped++;
+        } catch (error) {
+          failed++;
+          console.warn('Android 文件导入失败', entry.name, error);
+          toast(`${entry.name}：${error.message || '导入失败'}`, 'error');
+        }
+      }
+      render();
+      toast(`批量导入：成功 ${imported} 本，重复跳过 ${skipped} 本，失败 ${failed} 本。`);
+    } catch (error) { toast(`打开手机文件选择器失败：${error.message || error}`, 'error'); }
   }
   async function importFiles(files, source) {
     const list = [...files];
@@ -194,7 +216,12 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
       const minBytes = Math.max(0, Number($('folderMinSize').value) || 0) * 1024;
       const matches = window.libraDesktop?.isDesktop
         ? await window.libraDesktop.scanImportFolder(state.folderImportPath, formats, minBytes)
-        : folderBrowserFiles.filter(file => formats.includes(extension(file.name)) && file.size >= minBytes).map((file, index) => ({ name: file.name, ext: extension(file.name), size: file.size, relativePath: file.webkitRelativePath || file.name, browserIndex: folderBrowserFiles.indexOf(file) }));
+        : nativeAndroidFolder
+          ? await scanAndroidFolder(formats, minBytes)
+          : folderBrowserFiles.filter(file => formats.includes(extension(file.name)) && file.size >= minBytes).map(file => ({
+              name: file.name, ext: extension(file.name), size: file.size,
+              relativePath: file.webkitRelativePath || file.name, browserIndex: folderBrowserFiles.indexOf(file)
+            }));
       state.folderImportItems = matches.map(item => ({ ...item, selected: true }));
       renderFolderImportFiles();
     } catch (error) { toast(`扫描文件夹失败：${error.message || error}`, 'error'); }
@@ -213,7 +240,8 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
           const result = await window.libraDesktop.readImportFile(item.path);
           if (!result?.bytes) throw new Error('无法读取文件，可能已被移动或删除');
           file = new File([result.bytes], result.name, { lastModified: result.lastModified });
-        } else file = folderBrowserFiles[item.browserIndex];
+        } else if (nativeAndroidFolder) file = await loadAndroidBook(item);
+        else file = folderBrowserFiles[item.browserIndex];
         if (!file) throw new Error('所选文件已不可用，请重新选择文件夹');
         const book = await addFile(file, '文件夹导入', item.path || '', { quiet: true, favorite: $('folderImportFavorite').checked, allowDuplicate: $('allowDuplicateImport').checked });
         if (book) imported++; else skipped++;
@@ -508,21 +536,36 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
     $('folderNavTree').addEventListener('dragover', event => { if (event.target.closest('[data-folder-nav]')) { event.preventDefault(); event.dataTransfer.dropEffect = 'copy'; event.target.closest('.folder-nav-row')?.classList.add('drop-target'); } });
     $('folderNavTree').addEventListener('dragleave', event => event.target.closest('.folder-nav-row')?.classList.remove('drop-target'));
     $('folderNavTree').addEventListener('drop', async event => { const target = event.target.closest('[data-folder-nav]'); if (!target) return; event.preventDefault(); const row = target.closest('.folder-nav-row'); row?.classList.remove('drop-target'); try { const ids = JSON.parse(event.dataTransfer.getData('application/x-libra-book-ids') || '[]'); if (ids.length) { await saveFolderLinks(addFolderLinks(state.folderBooks, [target.dataset.folderNav], ids)); state.selectedBooks.clear(); toast(`已整理 ${ids.length} 本图书到「${folderById(target.dataset.folderNav)?.name || ''}」。`); } } catch (error) { toast(`拖放整理失败：${error.message || error}`, 'error'); } });
-    $('importBtn').onclick = $('emptyImportBtn').onclick = $('dropImportBtn').onclick = () => $('fileInput').click();
-    $('dashboardImportBtn').onclick = () => $('fileInput').click();
+    $('importBtn').onclick = $('emptyImportBtn').onclick = $('dropImportBtn').onclick = importFromPicker;
+    $('dashboardImportBtn').onclick = importFromPicker;
+    $('libraryImportFolderBtn').onclick = () => $('dashboardImportFolderBtn').click();
     $('dashboardImportFolderBtn').onclick = () => {
       $('folderImportModal').classList.remove('hidden'); $('folderImportPath').textContent = state.folderImportPath || '尚未选择文件夹';
+      $('allowDuplicateImport').checked = false;
+      $('folderSelectAll').checked = true;
       $('folderFileList').innerHTML = '<div class="folder-file-empty">选择文件夹后扫描匹配文件。</div>';
       $('folderScanSummary').textContent = '选择文件夹和格式后开始扫描。'; $('folderImportStart').disabled = true;
     };
     $('folderChooseSourceBtn').onclick = async () => {
       try {
+        if (androidFilePicker()) {
+          const folder = await chooseAndroidFolder();
+          if (folder?.cancelled) return;
+          nativeAndroidFolder = true;
+          folderBrowserFiles = [];
+          state.folderImportPath = folder.name || '已选文件夹';
+          $('folderImportPath').textContent = state.folderImportPath;
+          await scanImportFolder();
+          return;
+        }
         if (!window.libraDesktop?.isDesktop) { $('folderInput').click(); return; }
         const folder = await window.libraDesktop.chooseImportFolder(); if (!folder) return;
+        nativeAndroidFolder = false;
         state.folderImportPath = folder; $('folderImportPath').textContent = folder; await scanImportFolder();
       } catch (error) { toast(`选择文件夹失败：${error.message || error}`, 'error'); }
     };
     $('folderInput').onchange = async e => {
+      nativeAndroidFolder = false;
       folderBrowserFiles = Array.from(e.target.files || []);
       state.folderImportPath = folderBrowserFiles[0]?.webkitRelativePath?.split('/')[0] || '';
       $('folderImportPath').textContent = state.folderImportPath || '尚未选择文件夹';
@@ -530,6 +573,10 @@ import { NavigationHistoryService, ReadingPositionService } from './reader/posit
       e.target.value = '';
     };
     $('folderSelectAll').onchange = e => { state.folderImportItems.forEach(item => { item.selected = e.target.checked; }); renderFolderImportFiles(); };
+    document.querySelectorAll('.folder-format-list input').forEach(input => {
+      input.addEventListener('change', () => { if (state.folderImportPath) void scanImportFolder(); });
+    });
+    $('folderMinSize').onchange = () => { if (state.folderImportPath) void scanImportFolder(); };
     $('folderScanBtn').onclick = scanImportFolder;
     $('folderFileList').onchange = e => { const input = e.target.closest('[data-import-index]'); if (!input) return; const item = state.folderImportItems[Number(input.dataset.importIndex)]; if (item) item.selected = input.checked; renderFolderImportFiles(); };
     $('folderImportStart').onclick = importFolderSelection;
