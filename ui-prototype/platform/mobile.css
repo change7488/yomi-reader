@@ -56,11 +56,33 @@
 
 /* Brand: a restrained book-spine monogram, shared with desktop branding. */
 .platform-android .mobile-brand { display:flex; align-items:center; gap:8px; font-size:15px; letter-spacing:-.02em; }
-.yomi-mark { display:inline-grid; place-items:center; width:30px; height:30px; border-radius:9px; background:var(--accent-strong,#287f62); color:#fff; font:700 18px/1 Georgia,serif; box-shadow:inset -4px 0 #00000014; }
+.yomi-mark-image { width:32px; height:32px; flex:none; object-fit:contain; border-radius:10px; }
 .platform-android .folder-import-modal { padding:12px; }
 .platform-android .folder-import-dialog { max-width:100%; max-height:90dvh; overflow:auto; }
-.folder-import-choices { display:flex; flex-wrap:wrap; gap:12px; padding:10px 0; align-items:center; }
-.folder-import-choices label { display:flex; align-items:center; gap:6px; font-size:13px; }
 .platform-android .reader-modal.reader-ui-hidden { padding-top:0; padding-bottom:0; }
 
-.platform-android .yomi-mark svg { width:19px; height:19px; fill:none; stroke:currentColor; stroke-width:1.7; stroke-linecap:round; stroke-linejoin:round; }
+
+/* Real viewport layout, including phones with cutouts or gesture navigation. */
+.platform-android .reader-modal {
+  inset:0; width:100%; min-height:100dvh; max-height:100dvh;
+  background:var(--panel); box-sizing:border-box;
+}
+.platform-android .reader-layout,
+.platform-android .reader-body { min-height:0; }
+.platform-android .reader-chapter-title { padding-top:18px; }
+.platform-android .reader-modal.reader-ui-hidden .reader-chapter-title { padding-top:16px; }
+.platform-android .reader-modal.reader-ui-hidden .reader-layout { flex:1; min-height:0; }
+.platform-android .folder-import-dialog {
+  width:100%; padding:16px; max-height:calc(100dvh - 28px); border-radius:20px;
+}
+.platform-android .folder-import-filters { flex-wrap:wrap; align-items:center; }
+.platform-android .folder-import-source { flex-wrap:wrap; }
+.platform-android .folder-file-list { max-height:min(36dvh,360px); }
+.platform-android .folder-file-row { min-height:56px; gap:8px; }
+.platform-android .folder-file-row b { font-size:12px; }
+.platform-android .folder-import-dialog>footer { flex-wrap:wrap; }
+.platform-android .yomi-immersive-toggle {
+  display:flex; align-items:center; gap:10px;
+  margin:16px 8px; font-size:13px; color:var(--text);
+}
+.platform-android .yomi-immersive-toggle input { accent-color:var(--accent-strong); width:18px; height:18px; }
