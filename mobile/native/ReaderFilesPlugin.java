@@ -157,9 +157,12 @@ public class ReaderFilesPlugin extends Plugin {
                             queue.addLast(new ScanNode(id, relative, node.depth + 1));
                         continue;
                     }
+                    // Some Android document providers return generic names or unknown sizes.
+                    // Recognize supported types by extension first, then by MIME as fallback.
                     int dot = name.lastIndexOf('.');
-                    String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
-                    if (!formats.contains(ext) || size == 0 || size > MAX_FILE_BYTES
+                    String ext = dot < 0 ? "" : name.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
+                    if (!formats.contains(ext)) ext = extensionForMime(mime);
+                    if (!formats.contains(ext) || size == 0
                             || (size >= 0 && size < minimum)) continue;
                     String key = UUID.randomUUID().toString();
                     synchronized (allowedFiles) {
@@ -167,7 +170,13 @@ public class ReaderFilesPlugin extends Plugin {
                     }
                     JSObject record = new JSObject();
                     record.put("key", key);
-                    record.put("name", name);
+                    // Give extensionless documents a recognizable import filename,
+                    // while preserving the original provider display name in the path.
+                    String importName = name;
+                    int nameDot = name.lastIndexOf('.');
+                    String nameExt = nameDot < 0 ? "" : name.substring(nameDot + 1).trim().toLowerCase(Locale.ROOT);
+                    if (!nameExt.equals(ext)) importName = name + "." + ext;
+                    record.put("name", importName);
                     record.put("ext", ext);
                     record.put("size", Math.max(0L, size));
                     record.put("relativePath", relative.length() <= 450 ? relative
@@ -184,6 +193,15 @@ public class ReaderFilesPlugin extends Plugin {
             }
         }
         if (!queue.isEmpty() || stats.visited >= MAX_ENUMERATED) stats.truncated = true;
+    }
+
+    private static String extensionForMime(String mime) {
+        if (mime == null) return "";
+        String normalized = mime.toLowerCase(Locale.ROOT).trim();
+        if (normalized.equals("application/pdf")) return "pdf";
+        if (normalized.equals("application/epub+zip")) return "epub";
+        if (normalized.equals("text/plain") || normalized.equals("text/x-plain")) return "txt";
+        return "";
     }
 
     @PluginMethod
@@ -287,14 +305,26 @@ public class ReaderFilesPlugin extends Plugin {
             String name = c.getString(0);
             if (name == null) return null;
             int dot = name.lastIndexOf('.');
-            String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
+            String ext = dot < 0 ? "" : name.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
+            if (!acceptFonts && !(ext.equals("epub") || ext.equals("pdf") || ext.equals("txt"))) {
+                String[] mimeColumn = { DocumentsContract.Document.COLUMN_MIME_TYPE };
+                try (Cursor mimeCursor = getContext().getContentResolver().query(uri, mimeColumn, null, null, null)) {
+                    if (mimeCursor != null && mimeCursor.moveToFirst()) ext = extensionForMime(mimeCursor.getString(0));
+                } catch (Exception ignored) { }
+            }
             boolean accepted = acceptFonts
                 ? (ext.equals("ttf") || ext.equals("otf") || ext.equals("woff") || ext.equals("woff2"))
                 : (ext.equals("epub") || ext.equals("pdf") || ext.equals("txt"));
             if (!accepted) return null;
             long size = c.isNull(1) ? 0L : c.getLong(1);
             JSObject item = new JSObject();
-            item.put("name", name);
+            String importName = name;
+            if (!acceptFonts) {
+                int nameDot = name.lastIndexOf('.');
+                String nameExt = nameDot < 0 ? "" : name.substring(nameDot + 1).trim().toLowerCase(Locale.ROOT);
+                if (!nameExt.equals(ext)) importName = name + "." + ext;
+            }
+            item.put("name", importName);
             item.put("ext", ext);
             item.put("size", Math.max(0, size));
             item.put("relativePath", name);

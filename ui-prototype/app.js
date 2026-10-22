@@ -224,9 +224,15 @@ import { ReaderTabManager } from './reader/tab-manager.js';
     const plan = planImportBatch(items, nativeAndroidFolder || Boolean(androidFilePicker()));
     const safety = folderScanLimited ? '扫描已达到设备安全限制；如果还有未显示的书籍，请选择更小的子目录。' : '';
     const unreadable = folderUnavailableCount ? `有 ${folderUnavailableCount} 个无法访问的子目录已跳过。` : '';
+    const counts = { epub: 0, pdf: 0, txt: 0 };
+    for (const item of items) {
+      const format = String(item.ext || '').toLowerCase();
+      if (Object.hasOwn(counts, format)) counts[format]++;
+    }
+    const countText = `EPUB ${counts.epub} 本 · PDF ${counts.pdf} 本 · TXT ${counts.txt} 本`;
     $('folderScanSummary').textContent = items.length
-      ? `找到 ${items.length} 个匹配文件，已选择 ${selectedCount} 个。每次安全导入最多 ${nativeAndroidFolder || Boolean(androidFilePicker()) ? 16 : 50} 本。 ${safety} ${unreadable}`
-      : '没有找到符合格式和最小大小条件的文件。' + safety + unreadable;
+      ? `找到 ${items.length} 个匹配文件（${countText}），已选择 ${selectedCount} 个。每批最多 ${nativeAndroidFolder || Boolean(androidFilePicker()) ? 16 : 50} 本。 ${safety} ${unreadable}`
+      : `没有找到符合筛选条件的文件（${countText}）。请确认格式勾选及最小文件大小设置。 ${safety} ${unreadable}`;
     const shown = visibleImportItems(items, folderPreviewCount);
     list.innerHTML = shown.map((item, index) => `<label class="folder-file-row"><input type="checkbox" data-import-index="${index}" ${item.selected ? 'checked' : ''} ${folderImportBusy ? 'disabled' : ''}><span class="folder-file-type">${esc(item.ext.toUpperCase())}</span><span class="folder-file-name"><b>${esc(item.name)}</b><small>${esc(item.relativePath)}</small></span><span class="folder-file-size">${formatFileSize(item.size)}</span></label>`).join('') || '<div class="folder-file-empty">没有匹配文件。</div>';
     if (shown.length < items.length) {
