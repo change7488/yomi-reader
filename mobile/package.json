@@ -1,6 +1,6 @@
 {
   "name": "yomi-reader-android-shell",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "private": true,
   "description": "Android shell for the shared Yomi Reader web frontend",
   "dependencies": {
