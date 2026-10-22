@@ -170,7 +170,13 @@ public class ReaderFilesPlugin extends Plugin {
                     }
                     JSObject record = new JSObject();
                     record.put("key", key);
-                    record.put("name", name);
+                    // Give extensionless documents a recognizable import filename,
+                    // while preserving the original provider display name in the path.
+                    String importName = name;
+                    int nameDot = name.lastIndexOf('.');
+                    String nameExt = nameDot < 0 ? "" : name.substring(nameDot + 1).trim().toLowerCase(Locale.ROOT);
+                    if (!nameExt.equals(ext)) importName = name + "." + ext;
+                    record.put("name", importName);
                     record.put("ext", ext);
                     record.put("size", Math.max(0L, size));
                     record.put("relativePath", relative.length() <= 450 ? relative
@@ -312,7 +318,13 @@ public class ReaderFilesPlugin extends Plugin {
             if (!accepted) return null;
             long size = c.isNull(1) ? 0L : c.getLong(1);
             JSObject item = new JSObject();
-            item.put("name", name);
+            String importName = name;
+            if (!acceptFonts) {
+                int nameDot = name.lastIndexOf('.');
+                String nameExt = nameDot < 0 ? "" : name.substring(nameDot + 1).trim().toLowerCase(Locale.ROOT);
+                if (!nameExt.equals(ext)) importName = name + "." + ext;
+            }
+            item.put("name", importName);
             item.put("ext", ext);
             item.put("size", Math.max(0, size));
             item.put("relativePath", name);
