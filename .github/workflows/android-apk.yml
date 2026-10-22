@@ -67,3 +67,58 @@ jobs:
           path: release/Yomi-Reader-0.3.0-x64-Setup.exe
           if-no-files-found: error
           retention-days: 14
+
+  publish-preview:
+    name: Publish v0.3.0 preview release
+    needs: [build-android, desktop-regression]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Download Android ARM64 artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Yomi-Reader-Android-arm64-debug
+          path: release-assets
+      - name: Download Windows installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: Yomi-Reader-Windows-x64-Setup
+          path: release-assets
+      - name: Check asset integrity and generate checksums
+        shell: bash
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          test -s "release-assets/Yomi-Reader-${version}-x64-Setup.exe"
+          test -s "release-assets/Yomi-Reader-Android-arm64-debug.apk"
+          (cd release-assets && sha256sum "Yomi-Reader-${version}-x64-Setup.exe" Yomi-Reader-Android-arm64-debug.apk > SHA256SUMS.txt)
+      - name: Create versioned prerelease once
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          version="$(node -p "require('./package.json').version")"
+          tag="v${version}"
+          if gh release view "$tag" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "Release $tag already exists: skipping to protect published assets."
+            exit 0
+          fi
+          git fetch --tags origin
+          if git rev-parse -q --verify "refs/tags/$tag" >/dev/null 2>&1; then
+            echo "::error::Tag $tag exists without a release. Do not replace it automatically."
+            exit 1
+          fi
+          gh release create "$tag" \
+            "release-assets/Yomi-Reader-${version}-x64-Setup.exe" \
+            "release-assets/Yomi-Reader-Android-arm64-debug.apk" \
+            "release-assets/SHA256SUMS.txt" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --prerelease \
+            --title "Yomi Reader ${tag} · Windows + Android 预览版" \
+            --notes-file "docs/RELEASE_NOTES_v0.3.0.md"

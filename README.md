@@ -30,13 +30,13 @@ Yomi Reader 是一款以 **本地书库、舒适排版、可恢复的阅读进�
 
 ### Windows x64
 
-已发布的稳定预览安装包仍可从 [Releases](https://github.com/change7488/yomi-reader/releases) 获取（历史 v0.2.3）。**v0.3.0** 的 Windows 安装包由 [GitHub Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml) 的成功构建生成，位于 **Artifacts → Yomi-Reader-Windows-x64-Setup**。合并或发布前建议优先试用此版本。
+从 [v0.3.0 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.0) 下载 `Yomi-Reader-0.3.0-x64-Setup.exe`。旧版 v0.2.3 仍保留在 Releases，不会被覆盖。Windows 安装包目前尚未进行商业代码签名。
 
 ### Android ARM64
 
-进入同一个 [Actions 构建页面](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)，选择最新成功的构建，在底部 **Artifacts → Yomi-Reader-Android-arm64-debug** 下载 ZIP，解压得到 `Yomi-Reader-Android-arm64-debug.apk`，然后在手机上安装。
+从 [v0.3.0 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.0) 下载 `Yomi-Reader-Android-arm64-debug.apk`，在 Android ARM64 手机上安装。如需查看构建详情，可访问 [GitHub Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)。Release 同时附有 `SHA256SUMS.txt` 供校验安装包。
 
-**提醒**：目前 APK 为自动构建的 debug 签名测试版，签名可能随构建变化，无法保证每次都能直接覆盖旧版。卸载应用可能清除本机书库、阅读进度与自定义字体，更新前请妥善备份原始电子书。后续公开发行需要固定的发布签名。
+**提醒**：目前 APK 为自动构建的 debug 签名测试版，不是正式签名应用。不同构建间签名可能不一致，不能保证覆盖安装。卸载应用可能清除本机书库、阅读进度与自定义字体，因此请勿在未备份数据前卸载旧版。正式稳定更新仍需配置固定的发布签名。
 
 ## 字体：20 款已内置，支持导入
 
