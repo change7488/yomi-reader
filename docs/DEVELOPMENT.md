@@ -119,3 +119,17 @@ npm run android:apk          # 打包前自动同步字体 + Android 图标
 
 
 **一致的应用品牌**：构建时将原版 `assets/yomi-reader.png` 同步到 `ui-prototype/assets/yomi-reader.png`，供 Windows 和 Android 首页共同引用；Android Launcher 图标则由 Gradle 配置脚本引用同一原图。SVG 旧占位图不再使用。
+
+## v0.3.1 大文件夹与设备内存保护
+
+Android SAF 文档提供者可能是本机存储、云盘或厂商文件管理器，其查询时间、目录大小和文件流实现差异很大。为避免后台查询触发 UI 线程阻塞和 Base64 传输时的大型瞬时内存副本，读取适配层采用：
+
+- 原生目录 **广度优先** 扫描，最多 1,200 匹配文件、20,000 目录条目、18 层。结果截断时用户必须选择更小子目录，不暗中忽略限制。
+- 系统文件夹元数据的读取放在原生单线程 executor 上；Native → JS 使用 128 KB 的 `openRead/readChunk/closeRead` 管道。文件流每次只打开一个，并在结束或失败时关闭。
+- 单文件 64 MB 上限；此上限是预览版移动设备安全限制，不代表 EPUB/PDF 格式的理论最大值。
+- 共享 UI 每次渲染最多 60 个文件项，通过“显示更多”逐页添加；一次导入 Android 最多 16 本、Windows 最多 50 本，可继续导入剩余选择项。
+- `ui-prototype/library/folder-import-policy.js` 是批量限制的唯一来源，必须同步更新测试和 UI 显示。
+- 流式读取仍需在 WebView 内组合成一个 File 供现有 EPUB 解析器使用；未来要支持超大文件需要进一步用原生应用文件仓库和增量解码替代 IndexedDB File。
+
+本补丁不迁移或重建用户的任何数据库，Android 本地资料应当与旧版本处于同一应用沙盒。请注意 GitHub Actions 目前使用 debug 签名，不能保证跨构建无缝覆盖；不要在未备份书库前卸载旧 APK。
+

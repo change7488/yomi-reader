@@ -64,12 +64,12 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: Yomi-Reader-Windows-x64-Setup
-          path: release/Yomi-Reader-0.3.0-x64-Setup.exe
+          path: release/Yomi-Reader-*-x64-Setup.exe
           if-no-files-found: error
           retention-days: 14
 
   publish-preview:
-    name: Publish v0.3.0 preview release
+    name: Publish verified preview release
     needs: [build-android, desktop-regression]
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
@@ -121,4 +121,4 @@ jobs:
             --target "$GITHUB_SHA" \
             --prerelease \
             --title "Yomi Reader ${tag} · Windows + Android 预览版" \
-            --notes-file "docs/RELEASE_NOTES_v0.3.0.md"
+            --notes-file "docs/RELEASE_NOTES_v${version}.md"

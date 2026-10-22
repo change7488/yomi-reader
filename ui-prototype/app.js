@@ -1,4 +1,5 @@
 import { createDatabaseQueries, openLibraryDatabase } from './storage/database.js';
+import { PREVIEW_PAGE_SIZE, visibleImportItems, planImportBatch } from './library/folder-import-policy.js';
 import { initMobileShell } from './platform/mobile-shell.js';
 import { androidFilePicker, chooseAndroidFolder, scanAndroidFolder, chooseAndroidFiles, chooseAndroidFonts, loadAndroidBook } from './platform/android-files.js';
 import { pageDirectionForKey } from './reader/reading-interactions.js';
@@ -19,6 +20,11 @@ import { createFontManager } from './fonts/font-manager.js';
   const ACCEPTED = new Set(['epub', 'pdf', 'txt']);
   let folderBrowserFiles = [];
   let nativeAndroidFolder = false;
+  let folderPreviewCount = PREVIEW_PAGE_SIZE;
+  let folderScanLimited = false;
+  let folderUnavailableCount = 0;
+  let folderScanBusy = false;
+  let folderImportBusy = false;
   const $ = (id) => document.getElementById(id);
   const appearance = { palette: 'mint', mode: 'light', accent: '' };
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
@@ -164,7 +170,9 @@ import { createFontManager } from './fonts/font-manager.js';
     const book = { id, name: file.name, title: meta.title, author: meta.author, ext, file, nativePath, storageMode: nativePath ? 'managed' : 'indexeddb', coverBlob: meta.coverBlob, hash, progress: 0, favorite: !!options.favorite, lastRead: 0, addedAt: now, source };
     await put('books', book); state.books.push(book);
     await addTask({ id: `task-${id}`, name: file.name, ext, status: 'done', progress: 100, message: '已导入本地图书馆', createdAt: now, imported: true });
-    render(); onboarding.onBookImported(); if (!options.quiet) toast(`《${book.title}》已添加到书架。`); return book;
+    if (!options.deferRender) { render(); onboarding.onBookImported(); }
+    if (!options.quiet) toast(`《${book.title}》已添加到书架。`);
+    return book;
   }
   async function importFromPicker() {
     if (!androidFilePicker()) {
@@ -178,7 +186,7 @@ import { createFontManager } from './fonts/font-manager.js';
       let imported = 0, skipped = 0, failed = 0;
       for (const entry of entries) {
         try {
-          const book = await addFile(await loadAndroidBook(entry), '本地导入', '', { quiet: true });
+          const book = await addFile(await loadAndroidBook(entry), '本地导入', '', { quiet: true, deferRender: true });
           if (book) imported++; else skipped++;
         } catch (error) {
           failed++;
@@ -187,6 +195,7 @@ import { createFontManager } from './fonts/font-manager.js';
         }
       }
       render();
+      if (imported) onboarding.onBookImported();
       toast(`批量导入：成功 ${imported} 本，重复跳过 ${skipped} 本，失败 ${failed} 本。`);
     } catch (error) { toast(`打开手机文件选择器失败：${error.message || error}`, 'error'); }
   }
@@ -204,62 +213,139 @@ import { createFontManager } from './fonts/font-manager.js';
   }
   function renderFolderImportFiles() {
     const list = $('folderFileList'), items = state.folderImportItems;
+    const selectedCount = items.reduce((total, item) => total + (item.selected ? 1 : 0), 0);
+    const plan = planImportBatch(items, nativeAndroidFolder || Boolean(androidFilePicker()));
+    const safety = folderScanLimited ? '扫描已达到设备安全限制；如果还有未显示的书籍，请选择更小的子目录。' : '';
+    const unreadable = folderUnavailableCount ? `有 ${folderUnavailableCount} 个无法访问的子目录已跳过。` : '';
     $('folderScanSummary').textContent = items.length
-      ? `找到 ${items.length} 个匹配文件，已默认全选。取消勾选可跳过；扫描会包含所选文件夹的子目录。`
-      : '没有找到符合格式和最小大小条件的文件。';
-    list.innerHTML = items.map((item, index) => `<label class="folder-file-row"><input type="checkbox" data-import-index="${index}" ${item.selected ? 'checked' : ''}><span class="folder-file-type">${esc(item.ext.toUpperCase())}</span><span class="folder-file-name"><b>${esc(item.name)}</b><small>${esc(item.relativePath)}</small></span><span class="folder-file-size">${formatFileSize(item.size)}</span></label>`).join('') || '<div class="folder-file-empty">没有匹配文件。</div>';
-    const selected = items.filter(item => item.selected).length;
-    $('folderSelectAll').checked = !!items.length && selected === items.length;
-    $('folderSelectAll').indeterminate = selected > 0 && selected < items.length;
-    $('folderImportStart').disabled = selected === 0;
-    $('folderImportStart').textContent = `导入选中文件（${selected}）`;
+      ? `找到 ${items.length} 个匹配文件，已选择 ${selectedCount} 个。每次安全导入最多 ${nativeAndroidFolder || Boolean(androidFilePicker()) ? 16 : 50} 本。 ${safety} ${unreadable}`
+      : '没有找到符合格式和最小大小条件的文件。' + safety + unreadable;
+    const shown = visibleImportItems(items, folderPreviewCount);
+    list.innerHTML = shown.map((item, index) => `<label class="folder-file-row"><input type="checkbox" data-import-index="${index}" ${item.selected ? 'checked' : ''} ${folderImportBusy ? 'disabled' : ''}><span class="folder-file-type">${esc(item.ext.toUpperCase())}</span><span class="folder-file-name"><b>${esc(item.name)}</b><small>${esc(item.relativePath)}</small></span><span class="folder-file-size">${formatFileSize(item.size)}</span></label>`).join('') || '<div class="folder-file-empty">没有匹配文件。</div>';
+    if (shown.length < items.length) {
+      const more = document.createElement('button');
+      more.type = 'button';
+      more.className = 'secondary-button folder-import-show-more';
+      more.dataset.folderShowMore = '1';
+      more.textContent = `继续显示更多（已显示 ${shown.length}/${items.length}）`;
+      more.disabled = folderImportBusy;
+      list.append(more);
+    }
+    $('folderSelectAll').checked = !!items.length && selectedCount === items.length;
+    $('folderSelectAll').indeterminate = selectedCount > 0 && selectedCount < items.length;
+    $('folderSelectAll').disabled = folderImportBusy || folderScanBusy;
+    $('folderImportStart').disabled = folderImportBusy || folderScanBusy || plan.batch.length === 0;
+    if (!folderImportBusy) {
+      $('folderImportStart').textContent = selectedCount
+        ? `导入本批 ${plan.batch.length} 本${plan.remaining ? `（剩余 ${plan.remaining} 本）` : ''}`
+        : '导入选中文件';
+    }
   }
+
   async function scanImportFolder() {
+    if (folderScanBusy || folderImportBusy) return;
     if (!state.folderImportPath) { toast('请先选择要扫描的文件夹。'); return; }
     const formats = [...document.querySelectorAll('.folder-format-list input:checked')].map(input => input.value);
     if (!formats.length) { toast('至少选择一种文件格式。'); return; }
-    const button = $('folderScanBtn'); button.disabled = true; button.textContent = '正在扫描…';
+    folderScanBusy = true;
+    const button = $('folderScanBtn');
+    button.disabled = true; button.textContent = '正在扫描…';
+    $('folderChooseSourceBtn').disabled = true;
+    $('folderImportStart').disabled = true;
     try {
       const minBytes = Math.max(0, Number($('folderMinSize').value) || 0) * 1024;
-      const matches = window.libraDesktop?.isDesktop
-        ? await window.libraDesktop.scanImportFolder(state.folderImportPath, formats, minBytes)
-        : nativeAndroidFolder
-          ? await scanAndroidFolder(formats, minBytes)
-          : folderBrowserFiles.filter(file => formats.includes(extension(file.name)) && file.size >= minBytes).map(file => ({
-              name: file.name, ext: extension(file.name), size: file.size,
-              relativePath: file.webkitRelativePath || file.name, browserIndex: folderBrowserFiles.indexOf(file)
-            }));
+      let matches;
+      folderScanLimited = false;
+      folderUnavailableCount = 0;
+      if (window.libraDesktop?.isDesktop) {
+        matches = await window.libraDesktop.scanImportFolder(state.folderImportPath, formats, minBytes);
+      } else if (nativeAndroidFolder) {
+        const scan = await scanAndroidFolder(formats, minBytes);
+        matches = scan.files;
+        folderScanLimited = scan.limited;
+        folderUnavailableCount = scan.unreadableFolders;
+      } else {
+        matches = folderBrowserFiles
+          .filter(file => formats.includes(extension(file.name)) && file.size >= minBytes)
+          .map(file => ({ name: file.name, ext: extension(file.name), size: file.size, relativePath: file.webkitRelativePath || file.name, browserIndex: folderBrowserFiles.indexOf(file) }));
+      }
       state.folderImportItems = matches.map(item => ({ ...item, selected: true }));
+      folderPreviewCount = PREVIEW_PAGE_SIZE;
+      if (folderScanLimited) toast('目录文件较多，为避免手机闪退只显示部分结果。可选择更小的子文件夹继续导入。');
+    } catch (error) {
+      state.folderImportItems = [];
+      toast(`扫描文件夹失败：${error.message || error}`, 'error');
+    } finally {
+      folderScanBusy = false;
+      button.disabled = false;
+      button.textContent = '扫描匹配文件';
+      $('folderChooseSourceBtn').disabled = false;
       renderFolderImportFiles();
-    } catch (error) { toast(`扫描文件夹失败：${error.message || error}`, 'error'); }
-    finally { button.disabled = false; button.textContent = '扫描匹配文件'; }
-  }
-  async function importFolderSelection() {
-    const selected = state.folderImportItems.filter(item => item.selected);
-    if (!selected.length) return;
-    const button = $('folderImportStart'); button.disabled = true;
-    let imported = 0, skipped = 0, failed = [];
-    for (let index = 0; index < selected.length; index++) {
-      const item = selected[index]; button.textContent = `正在导入 ${index + 1}/${selected.length}`;
-      try {
-        let file;
-        if (window.libraDesktop?.isDesktop) {
-          const result = await window.libraDesktop.readImportFile(item.path);
-          if (!result?.bytes) throw new Error('无法读取文件，可能已被移动或删除');
-          file = new File([result.bytes], result.name, { lastModified: result.lastModified });
-        } else if (nativeAndroidFolder) file = await loadAndroidBook(item);
-        else file = folderBrowserFiles[item.browserIndex];
-        if (!file) throw new Error('所选文件已不可用，请重新选择文件夹');
-        const book = await addFile(file, '文件夹导入', item.path || '', { quiet: true, favorite: $('folderImportFavorite').checked, allowDuplicate: $('allowDuplicateImport').checked });
-        if (book) imported++; else skipped++;
-      } catch (error) { failed.push(`${item.name}：${error.message || '导入失败'}`); }
     }
-    button.textContent = '导入选中文件';
-    $('folderImportModal').classList.add('hidden');
-    if (failed.length) toast(`批量导入完成：成功 ${imported} 本，重复跳过 ${skipped} 本，失败 ${failed.length} 本。${failed[0]}`, 'error');
-    else toast(`批量导入完成：成功 ${imported} 本，重复跳过 ${skipped} 本。`);
-    render();
   }
+
+  async function importFolderSelection() {
+    if (folderImportBusy || folderScanBusy) return;
+    const isAndroid = nativeAndroidFolder || Boolean(androidFilePicker());
+    const plan = planImportBatch(state.folderImportItems, isAndroid);
+    const selected = plan.batch;
+    if (!selected.length) return;
+    folderImportBusy = true;
+    const button = $('folderImportStart');
+    button.disabled = true;
+    $('folderChooseSourceBtn').disabled = true;
+    $('folderScanBtn').disabled = true;
+    const inputs = document.querySelectorAll('.folder-import-filters input, #folderSelectAll, #allowDuplicateImport');
+    inputs.forEach(input => { input.disabled = true; });
+    let imported = 0, skipped = 0;
+    const failed = [];
+    try {
+      for (let index = 0; index < selected.length; index++) {
+        const item = selected[index];
+        button.textContent = `正在导入本批 ${index + 1}/${selected.length}`;
+        try {
+          let file;
+          if (window.libraDesktop?.isDesktop) {
+            const result = await window.libraDesktop.readImportFile(item.path);
+            if (!result?.bytes) throw new Error('无法读取文件，可能已被移动或删除');
+            file = new File([result.bytes], result.name, { lastModified: result.lastModified });
+          } else if (nativeAndroidFolder) file = await loadAndroidBook(item);
+          else file = folderBrowserFiles[item.browserIndex];
+          if (!file) throw new Error('所选文件已不可用，请重新选择文件夹');
+          const book = await addFile(file, '文件夹导入', item.path || '', {
+            quiet: true,
+            favorite: $('folderImportFavorite').checked,
+            allowDuplicate: $('allowDuplicateImport').checked,
+            deferRender: true
+          });
+          if (book) imported++; else skipped++;
+          // Completed and already-imported books should not be selected again next batch.
+          item.selected = false;
+        } catch (error) {
+          failed.push(`${item.name}：${error.message || '导入失败'}`);
+          // Leave failed books selected so the user may retry after fixing the cause.
+          item.selected = false;
+        }
+        // Give mobile WebView time to draw progress and release transient decode buffers.
+        await new Promise(resolve => setTimeout(resolve, 0));
+      }
+    } finally {
+      folderImportBusy = false;
+      $('folderChooseSourceBtn').disabled = false;
+      $('folderScanBtn').disabled = false;
+      inputs.forEach(input => { input.disabled = false; });
+      render();
+      if (imported) onboarding.onBookImported();
+      renderFolderImportFiles();
+    }
+    const remaining = state.folderImportItems.filter(item => item.selected).length;
+    const summary = `本批完成：成功 ${imported} 本，重复跳过 ${skipped} 本，失败 ${failed.length} 本。`;
+    if (!remaining && !failed.length) $('folderImportModal').classList.add('hidden');
+    if (failed.length) toast(summary + failed[0], 'error');
+    else if (remaining) toast(summary + `另有 ${remaining} 本待导入，点击继续导入下一批。`);
+    else toast(summary);
+  }
+
   async function migrateLibraryFolder() {
     if (!window.libraDesktop?.isDesktop) { toast('自定义磁盘书库位置需要 Windows 桌面版。'); return; }
     try {
@@ -550,6 +636,9 @@ import { createFontManager } from './fonts/font-manager.js';
       $('folderImportModal').classList.remove('hidden'); $('folderImportPath').textContent = state.folderImportPath || '尚未选择文件夹';
       $('allowDuplicateImport').checked = false;
       $('folderSelectAll').checked = true;
+      folderPreviewCount = PREVIEW_PAGE_SIZE;
+      folderScanLimited = false;
+      folderUnavailableCount = 0;
       $('folderFileList').innerHTML = '<div class="folder-file-empty">选择文件夹后扫描匹配文件。</div>';
       $('folderScanSummary').textContent = '选择文件夹和格式后开始扫描。'; $('folderImportStart').disabled = true;
     };
@@ -583,16 +672,36 @@ import { createFontManager } from './fonts/font-manager.js';
       if (folderBrowserFiles.length) await scanImportFolder();
       e.target.value = '';
     };
-    $('folderSelectAll').onchange = e => { state.folderImportItems.forEach(item => { item.selected = e.target.checked; }); renderFolderImportFiles(); };
+    $('folderSelectAll').onchange = e => {
+      if (folderImportBusy || folderScanBusy) return;
+      state.folderImportItems.forEach(item => { item.selected = e.target.checked; });
+      renderFolderImportFiles();
+    };
     document.querySelectorAll('.folder-format-list input').forEach(input => {
       input.addEventListener('change', () => { if (state.folderImportPath) void scanImportFolder(); });
     });
     $('folderMinSize').onchange = () => { if (state.folderImportPath) void scanImportFolder(); };
     $('folderScanBtn').onclick = scanImportFolder;
-    $('folderFileList').onchange = e => { const input = e.target.closest('[data-import-index]'); if (!input) return; const item = state.folderImportItems[Number(input.dataset.importIndex)]; if (item) item.selected = input.checked; renderFolderImportFiles(); };
+    $('folderFileList').onchange = e => {
+      if (folderImportBusy) return;
+      const input = e.target.closest('[data-import-index]');
+      if (!input) return;
+      const item = state.folderImportItems[Number(input.dataset.importIndex)];
+      if (item) item.selected = input.checked;
+      renderFolderImportFiles();
+    };
+    $('folderFileList').onclick = e => {
+      if (folderImportBusy || !e.target.closest('[data-folder-show-more]')) return;
+      folderPreviewCount = Math.min(folderPreviewCount + PREVIEW_PAGE_SIZE, state.folderImportItems.length);
+      renderFolderImportFiles();
+    };
     $('folderImportStart').onclick = importFolderSelection;
-    $('folderImportClose').onclick = $('folderImportCancel').onclick = () => $('folderImportModal').classList.add('hidden');
-    $('folderImportModal').onclick = e => { if (e.target === $('folderImportModal')) $('folderImportModal').classList.add('hidden'); };
+    $('folderImportClose').onclick = $('folderImportCancel').onclick = () => {
+      if (!folderImportBusy && !folderScanBusy) $('folderImportModal').classList.add('hidden');
+    };
+    $('folderImportModal').onclick = e => {
+      if (e.target === $('folderImportModal') && !folderImportBusy && !folderScanBusy) $('folderImportModal').classList.add('hidden');
+    };
     if (window.Capacitor?.isNativePlatform?.()) $('dashboardImportFolderBtn').classList.remove('hidden');
     $('chooseLibraryPathBtn').onclick = migrateLibraryFolder;
     $('fileInput').onchange = async e => { await importFiles(e.target.files, '本地导入'); e.target.value = ''; };
