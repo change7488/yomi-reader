@@ -205,30 +205,32 @@ public class ReaderFilesPlugin extends Plugin {
             call.resolve(reply);
             return;
         }
-        List<Uri> uris = new ArrayList<>();
+        final List<Uri> uris = new ArrayList<>();
         ClipData clip = data.getClipData();
         if (clip != null) {
-            for (int i = 0; i < clip.getItemCount() && i < MAX_RESULTS; i++) {
+            for (int i = 0; i < clip.getItemCount() && i < 60; i++) {
                 Uri uri = clip.getItemAt(i).getUri();
                 if (uri != null) uris.add(uri);
             }
         } else if (data.getData() != null) uris.add(data.getData());
-        synchronized (allowedFiles) { allowedFiles.clear(); }
-        JSArray files = new JSArray();
-        for (Uri uri : uris) {
-            try {
-                JSObject meta = describeFile(uri, false);
-                if (meta == null) continue;
-                String key = UUID.randomUUID().toString();
-                synchronized (allowedFiles) { allowedFiles.put(key, uri); }
-                meta.put("key", key);
-                files.put(meta);
-            } catch (Exception ignored) { /* Skip unreadable provider entries. */ }
-        }
-        JSObject reply = new JSObject();
-        reply.put("cancelled", false);
-        reply.put("files", files);
-        call.resolve(reply);
+        io.execute(() -> {
+            synchronized (allowedFiles) { allowedFiles.clear(); }
+            JSArray files = new JSArray();
+            for (Uri uri : uris) {
+                try {
+                    JSObject meta = describeFile(uri, false);
+                    if (meta == null) continue;
+                    String key = UUID.randomUUID().toString();
+                    synchronized (allowedFiles) { allowedFiles.put(key, uri); }
+                    meta.put("key", key);
+                    files.put(meta);
+                } catch (Exception ignored) { /* Skip unreadable provider entries. */ }
+            }
+            JSObject reply = new JSObject();
+            reply.put("cancelled", false);
+            reply.put("files", files);
+            call.resolve(reply);
+        });
     }
 
     @PluginMethod
@@ -250,7 +252,7 @@ public class ReaderFilesPlugin extends Plugin {
             call.resolve(reply);
             return;
         }
-        List<Uri> uris = new ArrayList<>();
+        final List<Uri> uris = new ArrayList<>();
         ClipData clip = data.getClipData();
         if (clip != null) {
             for (int i = 0; i < clip.getItemCount() && i < 40; i++) {
@@ -258,22 +260,24 @@ public class ReaderFilesPlugin extends Plugin {
                 if (uri != null) uris.add(uri);
             }
         } else if (data.getData() != null) uris.add(data.getData());
-        synchronized (allowedFiles) { allowedFiles.clear(); }
-        JSArray files = new JSArray();
-        for (Uri uri : uris) {
-            try {
-                JSObject meta = describeFile(uri, true);
-                if (meta == null) continue;
-                String key = UUID.randomUUID().toString();
-                synchronized (allowedFiles) { allowedFiles.put(key, uri); }
-                meta.put("key", key);
-                files.put(meta);
-            } catch (Exception ignored) { }
-        }
-        JSObject reply = new JSObject();
-        reply.put("cancelled", false);
-        reply.put("files", files);
-        call.resolve(reply);
+        io.execute(() -> {
+            synchronized (allowedFiles) { allowedFiles.clear(); }
+            JSArray files = new JSArray();
+            for (Uri uri : uris) {
+                try {
+                    JSObject meta = describeFile(uri, true);
+                    if (meta == null) continue;
+                    String key = UUID.randomUUID().toString();
+                    synchronized (allowedFiles) { allowedFiles.put(key, uri); }
+                    meta.put("key", key);
+                    files.put(meta);
+                } catch (Exception ignored) { }
+            }
+            JSObject reply = new JSObject();
+            reply.put("cancelled", false);
+            reply.put("files", files);
+            call.resolve(reply);
+        });
     }
 
     private JSObject describeFile(Uri uri, boolean acceptFonts) {
