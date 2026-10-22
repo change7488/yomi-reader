@@ -157,9 +157,12 @@ public class ReaderFilesPlugin extends Plugin {
                             queue.addLast(new ScanNode(id, relative, node.depth + 1));
                         continue;
                     }
+                    // Some Android document providers return generic names or unknown sizes.
+                    // Recognize supported types by extension first, then by MIME as fallback.
                     int dot = name.lastIndexOf('.');
-                    String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
-                    if (!formats.contains(ext) || size == 0 || size > MAX_FILE_BYTES
+                    String ext = dot < 0 ? "" : name.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
+                    if (!formats.contains(ext)) ext = extensionForMime(mime);
+                    if (!formats.contains(ext) || size == 0
                             || (size >= 0 && size < minimum)) continue;
                     String key = UUID.randomUUID().toString();
                     synchronized (allowedFiles) {
@@ -184,6 +187,15 @@ public class ReaderFilesPlugin extends Plugin {
             }
         }
         if (!queue.isEmpty() || stats.visited >= MAX_ENUMERATED) stats.truncated = true;
+    }
+
+    private static String extensionForMime(String mime) {
+        if (mime == null) return "";
+        String normalized = mime.toLowerCase(Locale.ROOT).trim();
+        if (normalized.equals("application/pdf")) return "pdf";
+        if (normalized.equals("application/epub+zip")) return "epub";
+        if (normalized.equals("text/plain") || normalized.equals("text/x-plain")) return "txt";
+        return "";
     }
 
     @PluginMethod
@@ -287,7 +299,13 @@ public class ReaderFilesPlugin extends Plugin {
             String name = c.getString(0);
             if (name == null) return null;
             int dot = name.lastIndexOf('.');
-            String ext = dot < 0 ? "" : name.substring(dot + 1).toLowerCase(Locale.ROOT);
+            String ext = dot < 0 ? "" : name.substring(dot + 1).trim().toLowerCase(Locale.ROOT);
+            if (!acceptFonts && !(ext.equals("epub") || ext.equals("pdf") || ext.equals("txt"))) {
+                String[] mimeColumn = { DocumentsContract.Document.COLUMN_MIME_TYPE };
+                try (Cursor mimeCursor = getContext().getContentResolver().query(uri, mimeColumn, null, null, null)) {
+                    if (mimeCursor != null && mimeCursor.moveToFirst()) ext = extensionForMime(mimeCursor.getString(0));
+                } catch (Exception ignored) { }
+            }
             boolean accepted = acceptFonts
                 ? (ext.equals("ttf") || ext.equals("otf") || ext.equals("woff") || ext.equals("woff2"))
                 : (ext.equals("epub") || ext.equals("pdf") || ext.equals("txt"));
