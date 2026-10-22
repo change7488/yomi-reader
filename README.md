@@ -17,11 +17,12 @@ Yomi Reader 是一款以 **本地书库、舒适排版、可恢复的阅读进�
 
 ## 功能
 
-- **本地格式**：导入 EPUB、TXT、PDF；解析 EPUB 目录与插图，TXT 支持章节规则和编码选项。Android PDF 使用本地 PDF.js；Windows PDF 使用 Electron 预览。
+- **本地格式**：导入 EPUB、TXT、PDF；解析 EPUB 目录与插图，TXT 支持章节规则和编码选项。Windows 与 Android 共用离线 PDF.js 阅读器，支持连续滚动、单页/双页漫画、日漫右向左阅读、缩略图和自动/标准/高清/超清渲染档位。
 - **文件夹批量导入**：Windows 和 Android 都可选择目录，递归识别 EPUB / TXT / PDF；格式筛选、默认全选、取消全选、单本勾选。v0.3.1 对大量文件使用分段显示与分批导入，避免一次性占用过多内存。Android 原生扫描最多展示 1,200 个匹配文件，超出时请细分文件夹；单个文件目前限 64 MB。
 - **安全去重**：通过 SHA-256 内容指纹跳过已入库文件；默认不重复导入，文件夹导入时可主动允许重复。同一本书的阅读进度不会因再次导入被覆盖。
 - **字体库 v0.3.0**：内置 **20 款开源字体风格**（19 款包含中文字符）；支持分类预览、每本书独立选择、设置全局默认，以及从设备导入 TTF / OTF / WOFF / WOFF2 字体。安装后离线可用。
-- **阅读体验**：主题、字号、行距、左右留白、滚动/翻页模式、书签、笔记、章节搜索、朗读及阅读记录。
+- **阅读体验**：主题、字号、行距、左右留白、滚动/翻页模式、书签、笔记、章节搜索、朗读及阅读记录。PDF 画布采用可视区域附近渲染，并受设备像素预算和活动画布数量限制；PDF 页面数据本身仍由 PDF.js 在内存中读取。
+- **桌面阅读工作区**：Windows 将书库与阅读器放在独立窗口中，阅读器支持多书标签、拖动排序、关闭后恢复及最近关闭标签重开。图书、阅读位置与设置仍保存在原来的本地数据库中。
 - **进度可恢复**：章节目录、书签和进度条的跳转历史、上一步/下一步及跨次阅读会话记录；正常翻页不会每一页都写入跳转历史。
 - **手机操作**：左右区域轻点翻页、中心轻点隐藏工具栏、音量键翻页、系统返回键；阅读时可隐藏系统状态栏和导航栏，离开阅读器后恢复。
 - **本机使用**：不需要创建账号。当前没有跨设备自动同步；书籍、字体和阅读记录不会被主动上传。
@@ -30,11 +31,11 @@ Yomi Reader 是一款以 **本地书库、舒适排版、可恢复的阅读进�
 
 ### Windows x64
 
-从 [v0.3.1 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.1) 下载 `Yomi-Reader-0.3.1-x64-Setup.exe`。旧版 v0.2.3 仍保留在 Releases，不会被覆盖。Windows 安装包目前尚未进行商业代码签名。
+从 [v0.3.2 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.2) 下载 `Yomi-Reader-0.3.2-x64-Setup.exe`。旧版 v0.3.1 和 v0.2.3 仍保留在 Releases，不会被覆盖。Windows 安装包目前尚未进行商业代码签名。
 
 ### Android ARM64
 
-从 [v0.3.1 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.1) 下载修复文件夹导入闪退的 `Yomi-Reader-Android-arm64-debug.apk`，在 Android ARM64 手机上安装。如需查看构建详情，可访问 [GitHub Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)。Release 同时附有 `SHA256SUMS.txt` 供校验安装包。
+从 [v0.3.2 预览版 Release](https://github.com/change7488/yomi-reader/releases/tag/v0.3.2) 下载 `Yomi-Reader-Android-arm64-debug.apk`，在 Android ARM64 手机上安装。如需查看构建详情，可访问 [GitHub Actions](https://github.com/change7488/yomi-reader/actions/workflows/android-apk.yml)。Release 同时附有 `SHA256SUMS.txt` 供校验安装包。
 
 **提醒**：目前 APK 为自动构建的 debug 签名测试版，不是正式签名应用。不同构建间签名可能不一致，不能保证覆盖安装。卸载应用可能清除本机书库、阅读进度与自定义字体，因此请勿在未备份数据前卸载旧版。正式稳定更新仍需配置固定的发布签名。
 
@@ -57,9 +58,12 @@ git clone https://github.com/change7488/yomi-reader.git
 cd yomi-reader
 npm ci
 npm run fonts:sync
+npm run pdfjs:sync
 npm run check
 npm start
 ```
+
+`npm start`、`npm run test:ui` 和 Windows 打包会自动同步 PDF.js 运行文件。首次同步需要 `npm install` 已安装根项目依赖；PDF.js 运行文件由固定版本 `pdfjs-dist` 提供，不需要 Android 依赖安装步骤。
 
 打包 Windows：
 
@@ -84,12 +88,12 @@ ui-prototype/
   fonts/                 字体管理、20 款清单、授权与离线资源
   library/               书库视图
   storage/               IndexedDB 迁移与访问
-  platform/              Android 文件导入、手机布局与 PDF
+  platform/              Android 文件导入、手机布局与共享 PDF.js 阅读器
   onboarding/            新手教程
   styles/                分模块 CSS
 electron/                Windows 桌面原生壳
 mobile/                  Android Capacitor 壳与原生桥接
-scripts/                 字体同步、Android 构建与图标配置
+scripts/                 字体/PDF.js 同步、Android 构建与图标配置
 docs/                    开发文档
 ```
 

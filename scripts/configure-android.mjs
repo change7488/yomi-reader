@@ -13,7 +13,7 @@ if (!text.includes("abiFilters 'arm64-v8a'")) {
 const appVersion = JSON.parse(readFileSync(resolve('package.json'), 'utf8')).version;
 if (!/^\d+\.\d+\.\d+$/.test(appVersion)) throw new Error('Invalid package version');
 text = readFileSync(file, 'utf8')
-  .replace(/versionCode\s+\d+/, 'versionCode 31')
+  .replace(/versionCode\s+\d+/, 'versionCode 32')
   .replace(/versionName\s+["'][^"']+["']/, 'versionName "' + appVersion + '"');
 writeFileSync(file, text);
 console.log('Android ABI: arm64-v8a, versionName ' + appVersion);

@@ -13,6 +13,7 @@ import { createOnboarding } from './onboarding/onboarding.js';
 import { addFolderLinks, deleteBookEntity, deleteFolderTree, removeFolderLinks } from './library-model.js';
 import { NavigationHistoryService, ReadingPositionService } from './reader/position-services.js';
 import { createFontManager } from './fonts/font-manager.js';
+import { ReaderTabManager } from './reader/tab-manager.js';
 
 (() => {
   'use strict';
@@ -26,6 +27,12 @@ import { createFontManager } from './fonts/font-manager.js';
   let folderScanBusy = false;
   let folderImportBusy = false;
   const $ = (id) => document.getElementById(id);
+  const desktopReaderWindow = Boolean(window.libraDesktop?.isDesktop && new URLSearchParams(location.search).get('window') === 'reader');
+  const readerWindowParams = new URLSearchParams(location.search);
+  const readerTabs = new ReaderTabManager();
+  const readerWorkspaceKey = 'yomi-reader-workspace-v1';
+  let readerTabTask = Promise.resolve();
+  let readerTabContextId = '';
   const appearance = { palette: 'mint', mode: 'light', accent: '' };
   const systemDark = window.matchMedia('(prefers-color-scheme: dark)');
   function applyAppearance() {
@@ -405,7 +412,87 @@ import { createFontManager } from './fonts/font-manager.js';
   const { renderDashboard } = createDashboardView({ state, $, esc, coverSrc, navigate, renderReadingAnalytics });
   const { renderTasks } = createTaskView({ state, $, esc });
   // The same reader controller drives Electron and Android WebView.
-  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook, closeReader, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn, fontManager, chooseFontFiles: androidFilePicker() ? nativeFontPicker : null });
+  const { applyReaderStyle, reflowReaderPreservingPosition, installReaderControls, moveReaderPage, toggleReaderFullscreen, showReaderImage, persistReaderPosition, navigateReaderBack, navigateReaderForward, openBook: openBookInCurrentWindow, closeReader: closeReaderInCurrentWindow, bindReaderEvents } = createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn, fontManager, chooseFontFiles: androidFilePicker() ? nativeFontPicker : null });
+
+  function saveReaderWorkspace() {
+    if (!desktopReaderWindow) return;
+    try { localStorage.setItem(readerWorkspaceKey, JSON.stringify(readerTabs.snapshot())); }
+    catch (error) { console.warn('保存阅读工作区失败', error); }
+  }
+  function renderReaderTabs() {
+    if (!desktopReaderWindow) return;
+    const bar = $('readerTabsBar'), host = $('readerTabs');
+    bar.classList.toggle('hidden', readerTabs.tabs.length === 0);
+    host.innerHTML = readerTabs.tabs.map(tab => `<div class="reader-tab${tab.bookId === readerTabs.activeBookId ? ' active' : ''}" role="tab" tabindex="0" aria-selected="${tab.bookId === readerTabs.activeBookId}" data-reader-tab="${esc(tab.bookId)}" draggable="true"><button class="reader-tab-select" title="${esc(tab.title)}">${esc(tab.title)}</button><button class="reader-tab-close" title="关闭标签" aria-label="关闭 ${esc(tab.title)}" data-close-reader-tab="${esc(tab.bookId)}">×</button></div>`).join('');
+    $('readerReopenTab').disabled = !readerTabs.recentlyClosed.length || readerTabs.tabs.length >= readerTabs.maxTabs;
+  }
+  function activateReaderTab(bookId) {
+    if (!desktopReaderWindow) return openBookInCurrentWindow(bookId);
+    if (!readerTabs.tabs.some(tab => tab.bookId === bookId) && readerTabs.tabs.length >= readerTabs.maxTabs) {
+      toast(`最多同时打开 ${readerTabs.maxTabs} 本书，请先关闭一个标签。`);
+      return Promise.resolve(false);
+    }
+    readerTabTask = readerTabTask.catch(() => {}).then(async () => {
+      if (state.readerBook?.id !== bookId) {
+        if (state.readerBook) await closeReaderInCurrentWindow();
+        await openBookInCurrentWindow(bookId);
+      }
+      const book = state.books.find(item => item.id === bookId);
+      if (!book) return;
+      readerTabs.open(bookId, book.title);
+      readerTabs.activate(bookId);
+      saveReaderWorkspace(); renderReaderTabs();
+    });
+    return readerTabTask;
+  }
+  function openBook(bookId) {
+    if (window.libraDesktop?.isDesktop && !desktopReaderWindow) return window.libraDesktop.openReader(bookId);
+    return desktopReaderWindow ? activateReaderTab(bookId) : openBookInCurrentWindow(bookId);
+  }
+  async function closeReaderTab(bookId = readerTabs.activeBookId) {
+    if (!desktopReaderWindow || !bookId) return closeReaderInCurrentWindow();
+    readerTabTask = readerTabTask.catch(() => {}).then(async () => {
+      const wasActive = readerTabs.activeBookId === bookId;
+      if (wasActive && state.readerBook?.id === bookId) await closeReaderInCurrentWindow();
+      readerTabs.close(bookId); saveReaderWorkspace(); renderReaderTabs();
+      if (wasActive && readerTabs.activeBookId) await openBookInCurrentWindow(readerTabs.activeBookId);
+      else if (!readerTabs.tabs.length) await window.libraDesktop.focusLibrary();
+    });
+    return readerTabTask;
+  }
+  async function closeReader() {
+    if (!desktopReaderWindow) return closeReaderInCurrentWindow();
+    return closeReaderTab();
+  }
+  async function closeReaderWorkspaceForOS(request = {}) {
+    try {
+      await readerTabTask.catch(() => {});
+      if (state.readerBook) await closeReaderInCurrentWindow();
+      await state.positionService?.flushAll();
+      saveReaderWorkspace();
+    } catch (error) { console.warn('关闭阅读窗口时保存进度失败', error); }
+    await window.libraDesktop.confirmReaderClose();
+  }
+  async function restoreReaderWorkspace() {
+    const restoreEnabled = localStorage.getItem('yomi-reader-session-restore') !== '0';
+    const validIds = new Set(state.books.map(book => book.id));
+    const requestedBookId = readerWindowParams.get('bookId');
+    if (restoreEnabled) {
+      try { const snapshot = JSON.parse(localStorage.getItem(readerWorkspaceKey) || 'null'); readerTabs.restore(snapshot, validIds); }
+      catch (error) { console.warn('恢复阅读标签失败', error); }
+    }
+    let targetId = requestedBookId && validIds.has(requestedBookId) ? requestedBookId : (restoreEnabled ? readerTabs.activeBookId : null);
+    if (requestedBookId && validIds.has(requestedBookId) && !readerTabs.tabs.some(tab => tab.bookId === requestedBookId)) {
+      try { readerTabs.open(requestedBookId, state.books.find(book => book.id === requestedBookId)?.title); }
+      catch { readerTabs.close(readerTabs.tabs[0]?.bookId); readerTabs.open(requestedBookId, state.books.find(book => book.id === requestedBookId)?.title); }
+    }
+    if (targetId && !readerTabs.tabs.some(tab => tab.bookId === targetId)) {
+      try { readerTabs.open(targetId, state.books.find(book => book.id === targetId)?.title); }
+      catch { targetId = null; }
+    }
+    if (targetId) { readerTabs.activate(targetId); await openBookInCurrentWindow(targetId); }
+    renderReaderTabs(); saveReaderWorkspace();
+  }
 
   function render() { renderFolders(); renderBooks(); renderTasks(); renderDashboard(); }
   function titleFor(route) { if (route.startsWith('folder:')) return folderById(route.slice(7))?.name || '我的文件夹'; return ({ all: '全部图书', favorites: '我的喜爱', history: '阅读记录' })[route] || '我的书库'; }
@@ -585,6 +672,59 @@ import { createFontManager } from './fonts/font-manager.js';
     state.analyticsLastTick = Date.now(); state.analyticsTimer = setInterval(trackActiveReading, 15_000);
     $('readerModal').addEventListener('pointerdown', markReaderActivity, true);
     $('readerModal').addEventListener('keydown', markReaderActivity, true);
+    if (desktopReaderWindow) {
+      document.body.classList.add('desktop-reader-window');
+      $('readerBack').onclick = () => window.libraDesktop.focusLibrary();
+      $('readerReturnLibrary').onclick = () => window.libraDesktop.focusLibrary();
+      $('readerReopenTab').onclick = async () => {
+        const tab = readerTabs.reopenLastClosed();
+        if (!tab) return;
+        saveReaderWorkspace(); renderReaderTabs();
+        await openBookInCurrentWindow(tab.bookId);
+      };
+      $('readerTabs').addEventListener('click', event => {
+        const close = event.target.closest('[data-close-reader-tab]');
+        if (close) { event.stopPropagation(); void closeReaderTab(close.dataset.closeReaderTab); return; }
+        const tab = event.target.closest('[data-reader-tab]');
+        if (tab) void activateReaderTab(tab.dataset.readerTab);
+      });
+      $('readerTabs').addEventListener('keydown', event => {
+        const tab = event.target.closest('[data-reader-tab]');
+        if (tab && (event.key === 'Enter' || event.key === ' ')) { event.preventDefault(); void activateReaderTab(tab.dataset.readerTab); }
+      });
+      $('readerTabs').addEventListener('contextmenu', event => {
+        const tab = event.target.closest('[data-reader-tab]'); if (!tab) return;
+        event.preventDefault(); readerTabContextId = tab.dataset.readerTab;
+        const menu = $('readerTabMenu'); menu.style.left = `${Math.max(8, Math.min(event.clientX, innerWidth - 180))}px`; menu.style.top = `${Math.max(8, Math.min(event.clientY, innerHeight - 130))}px`; menu.classList.remove('hidden');
+      });
+      $('readerTabs').addEventListener('dragstart', event => { const tab = event.target.closest('[data-reader-tab]'); if (!tab) return; event.dataTransfer.setData('text/yomi-reader-tab', tab.dataset.readerTab); event.dataTransfer.effectAllowed = 'move'; });
+      $('readerTabs').addEventListener('dragover', event => { if (event.target.closest('[data-reader-tab]')) { event.preventDefault(); event.dataTransfer.dropEffect = 'move'; } });
+      $('readerTabs').addEventListener('drop', event => {
+        const target = event.target.closest('[data-reader-tab]'), draggedId = event.dataTransfer.getData('text/yomi-reader-tab');
+        if (!target || !draggedId || draggedId === target.dataset.readerTab) return;
+        event.preventDefault(); const index = readerTabs.tabs.findIndex(tab => tab.bookId === target.dataset.readerTab);
+        readerTabs.move(draggedId, index); saveReaderWorkspace(); renderReaderTabs();
+      });
+      $('readerTabMenu').addEventListener('click', event => {
+        const action = event.target.closest('[data-tab-action]')?.dataset.tabAction; if (!action) return;
+        $('readerTabMenu').classList.add('hidden');
+        if (action === 'close') void closeReaderTab(readerTabContextId);
+        if (action === 'others') void (async () => { const keep = readerTabContextId; for (const tab of [...readerTabs.tabs]) if (tab.bookId !== keep) await closeReaderTab(tab.bookId); await activateReaderTab(keep); })();
+        if (action === 'right') void (async () => { const keep = readerTabContextId; const index = readerTabs.tabs.findIndex(tab => tab.bookId === keep); const right = readerTabs.tabs.slice(index + 1).map(tab => tab.bookId); for (const id of right) await closeReaderTab(id); })();
+      });
+      document.addEventListener('pointerdown', event => { if (!event.target.closest('#readerTabs,#readerTabMenu')) $('readerTabMenu').classList.add('hidden'); });
+      window.libraDesktop.onOpenBook(bookId => void activateReaderTab(bookId).catch(error => toast(`打开图书失败：${error.message || error}`, 'error')));
+      window.libraDesktop.onReaderCloseRequest(request => void closeReaderWorkspaceForOS(request));
+      $('readerRestoreSwitch').classList.toggle('on', localStorage.getItem('yomi-reader-session-restore') !== '0');
+    } else if (window.libraDesktop?.isDesktop) {
+      $('readerRestoreSwitch').classList.toggle('on', localStorage.getItem('yomi-reader-session-restore') !== '0');
+      $('readerRestoreSwitch').onclick = () => {
+        const enabled = localStorage.getItem('yomi-reader-session-restore') === '0';
+        localStorage.setItem('yomi-reader-session-restore', enabled ? '1' : '0');
+        $('readerRestoreSwitch').classList.toggle('on', enabled);
+        toast(enabled ? '下次打开时恢复阅读标签。' : '已关闭阅读标签恢复，当前标签仍会正常保存。');
+      };
+    } else $('readerRestoreSwitch').closest('.settings-card')?.classList.add('hidden');
     document.querySelectorAll('.nav-item[data-view]').forEach(item => { if (!item.title) item.title = item.textContent.trim(); });
     document.body.addEventListener('click', async e => {
       const route = e.target.closest('[data-view]'); if (route) navigate(route.dataset.view);
@@ -709,20 +849,28 @@ import { createFontManager } from './fonts/font-manager.js';
     $('topSearchBtn').onclick = () => $('searchInput').focus();
     document.addEventListener('keydown', e => {
       if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'k') { e.preventDefault(); $('searchInput').focus(); }
+      if (desktopReaderWindow && (e.ctrlKey || e.metaKey) && !e.altKey) {
+        const key = e.key.toLowerCase();
+        if (key === 'w') { e.preventDefault(); void closeReaderTab(); return; }
+        if (key === 'l') { e.preventDefault(); void window.libraDesktop.focusLibrary(); return; }
+        if (key === 'tab') { e.preventDefault(); const index = readerTabs.tabs.findIndex(tab => tab.bookId === readerTabs.activeBookId); const delta = e.shiftKey ? -1 : 1; const next = readerTabs.tabs[(index + delta + readerTabs.tabs.length) % readerTabs.tabs.length]; if (next) void activateReaderTab(next.bookId); return; }
+        if (e.shiftKey && key === 't') { e.preventDefault(); $('readerReopenTab').click(); return; }
+        if (/^[1-9]$/.test(key)) { e.preventDefault(); const tab = readerTabs.tabs[Number(key) - 1]; if (tab) void activateReaderTab(tab.bookId); return; }
+      }
       if ($('readerLightbox').classList.contains('open') && e.key === 'ArrowLeft') showReaderImage(state.activeImageIndex - 1);
       else if ($('readerLightbox').classList.contains('open') && e.key === 'ArrowRight') showReaderImage(state.activeImageIndex + 1);
       else if (e.key === 'F11' && !$('readerModal').classList.contains('hidden')) { e.preventDefault(); toggleReaderFullscreen(); }
       else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowLeft') { e.preventDefault(); navigateReaderBack(); }
       else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && (e.ctrlKey || e.metaKey) && e.shiftKey && e.key === 'ArrowRight') { e.preventDefault(); navigateReaderForward(); }
-      else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('button,input,textarea,select,[contenteditable="true"]') && !e.ctrlKey && !e.altKey && !e.metaKey && !$('readerLightbox').classList.contains('open') && pageDirectionForKey(e.key, e.shiftKey)) { markReaderActivity(); e.preventDefault(); if (state.readerChapters.length) moveReaderPage(pageDirectionForKey(e.key, e.shiftKey)); }
+      else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('button,input,textarea,select,[contenteditable="true"]') && !e.ctrlKey && !e.altKey && !e.metaKey && !$('readerLightbox').classList.contains('open') && pageDirectionForKey(e.key, e.shiftKey)) { markReaderActivity(); e.preventDefault(); const direction = pageDirectionForKey(e.key, e.shiftKey); if (state.readerPdfViewer) { const rtl = state.readerBook?.pdfReaderSettings?.direction === 'rtl'; (direction * (rtl ? -1 : 1) > 0 ? state.readerPdfViewer.next : state.readerPdfViewer.previous).call(state.readerPdfViewer); } else if (state.readerChapters.length) moveReaderPage(direction); }
       else if (!$('readerModal').classList.contains('hidden') && !e.target.closest('input,textarea,select') && !e.ctrlKey && !e.altKey && !e.metaKey && e.key.toLowerCase() === 'h') { e.preventDefault(); $('readerModal').classList.toggle('reader-ui-hidden'); }
       else if (e.key === 'Escape') {
-        if (document.fullscreenElement) return;
+        if (document.fullscreenElement) { e.preventDefault(); void document.exitFullscreen(); return; }
         const modal = $('readerModal');
         const panels = ['readerLightbox','readerNotesPanel','readerSearchPanel','readerPositionHistory','readerToc','readerGallery','readerSettings','readerBookmarks','readerThemePicker','readerSeekPreview'];
         const open = panels.map(id => $(id)).find(el => el && (el.classList.contains('open') || (el.id === 'readerSeekPreview' && !el.classList.contains('hidden'))));
         if (open) { e.preventDefault(); if (open.id === 'readerSeekPreview') open.classList.add('hidden'); else open.classList.remove('open'); }
-        else if (!modal.classList.contains('hidden')) { e.preventDefault(); void closeReader(); }
+        else if (!modal.classList.contains('hidden')) { e.preventDefault(); if (desktopReaderWindow) void closeReaderTab(); else void closeReaderInCurrentWindow(); }
       }
     });
     document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') { if (state.readerBook && state.readerChapters.length) persistReaderPosition(true).catch(error => console.warn('切到后台时保存位置失败', error)); else state.positionService?.flushAll(); } });
@@ -854,7 +1002,12 @@ import { createFontManager } from './fonts/font-manager.js';
     if (folder?.value) { state.folder = folder.value; try { if (await state.folder.queryPermission({ mode: 'read' }) === 'granted') { $('watchFolderText').textContent = state.folder.name; beginScan(); } else $('watchFolderText').textContent = `${state.folder.name}（点击重新授权）`; } catch (_) {} }
     $('dockOpen').style.display = state.tasks.length ? 'inline-block' : '';
     navigate('home'); render();
-    onboarding.maybeAutoStart({ booksCount: state.books.length, tasksCount: state.tasks.length });
+    if (desktopReaderWindow) {
+      document.title = '阅读中 · Yomi Reader';
+      readerTabTask = restoreReaderWorkspace();
+      await readerTabTask;
+      await window.libraDesktop.readerReady();
+    } else onboarding.maybeAutoStart({ booksCount: state.books.length, tasksCount: state.tasks.length });
   }
   init();
 })();

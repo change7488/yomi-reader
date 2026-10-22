@@ -14,7 +14,7 @@ ui-prototype/
   analytics/         阅读统计
   downloads/         下载队列视图
   onboarding/        新用户帮助
-  platform/          Android 触摸、布局和 PDF 适配
+  platform/          Android 触摸、布局和 Windows/Android 共用的 PDF.js 阅读器
   styles/            按功能划分的有序 CSS
 electron/            Windows 原生文件管理与下载监控
 mobile/              薄 Android Capacitor 外壳与独立原生依赖
@@ -31,7 +31,7 @@ npm run test:ui
 npm start
 ```
 
-Windows 仍用 `electron/main.cjs`，默认书库位置、IndexedDB 名称、Electron appId 均保持不变。重复启动会激活现有窗口，避免 Chromium 缓存被多实例争用。
+Windows 仍用 `electron/main.cjs`，默认书库位置、IndexedDB 名称、Electron appId 均保持不变。重复启动会激活现有窗口，避免 Chromium 缓存被多实例争用。关闭书库窗口不会退出仍打开的阅读窗口；阅读器窗口可用标签切换多本书，标签只保存书籍 ID，不复制书籍文件。
 
 ## Android ARM64 APK
 
@@ -42,7 +42,7 @@ npm ci
 npm run android:apk
 ```
 
-命令会安装 `mobile/package.json` 中固定版本的 Capacitor 8、Android App 插件及 PDF.js，复制共享网页资源到 `dist/android`，初始化/同步 `mobile/android` 工程并运行 Gradle。结果：
+命令会安装 `mobile/package.json` 中固定版本的 Capacitor 8 和 Android App 插件，复用根项目锁定的 PDF.js，把共享网页资源复制到 `dist/android`，初始化/同步 `mobile/android` 工程并运行 Gradle。结果：
 
 `release/Yomi-Reader-Android-arm64-debug.apk`
 
@@ -53,7 +53,7 @@ npm run android:apk
 | 功能 | Windows | Android |
 |---|---|---|
 | EPUB/TXT 阅读、收藏、书签、目录、进度与笔记 | 共用核心 | 共用核心 |
-| PDF | Electron PDF 内置预览 | 本地 PDF.js 按需渲染 |
+| PDF | 共用 PDF.js，按视口邻近页面渲染 | 共用 PDF.js，按视口邻近页面渲染 |
 | 导入 | 单文件、批量扫描、下载监控 | Android 系统文件选择器 |
 | 书籍存储 | 本地管理文件夹 + IndexedDB | 应用私有 IndexedDB |
 | 导航 | 左侧导航、鼠标滚轮/键盘 | 底部标签、滑动翻页、返回键 |
@@ -75,7 +75,21 @@ npm run android:apk
 
 ## 阅读操作
 
-Android EPUB/TXT：轻点左 28% 后退、右 28% 前进、中心隐藏/显示上下工具栏；左右滑动继续支持。音量减键下一页、音量加键上一页，仅在阅读器打开时拦截；书架中音量键仍调节系统声音。PDF 保持原生滚动，不强制按 EPUB 的翻页方式切割 PDF。
+### PDF 与漫画模式
+
+PDF 使用 `ui-prototype/platform/pdf-viewer.js`，Windows 与 Android 共享同一阅读实现。`npm run pdfjs:sync` 从根目录固定依赖 `pdfjs-dist` 复制 `pdf.mjs` 和 `pdf.worker.mjs` 到 `ui-prototype/vendor/pdfjs/`；`npm start`、`npm run test:ui` 和 `npm run dist:win` 会自动同步。Android 打包把同一对文件复制到 `dist/android/vendor/pdfjs/`。无需更改书库表或重建数据库。
+
+阅读模式支持文档连续流、连续滚动、横向单页和双页漫画；方向支持从左到右、从右到左和从上到下（从上到下会自动切到连续滚动）。标准、高清与超清只改变 PDF.js 的采样倍率，不会生成原稿没有的图像细节。每个页面画布受像素预算限制，最多保留 5 个活动页面 Canvas；缩略图另有 12 项内存缓存。关闭图书时会取消进行中的渲染并释放画布。
+
+当前限制：PDF.js 仍需把 PDF 文件数据读入内存；页面占位节点按文档页数建立。Canvas 有界不等于完整的流式 PDF 解码，因此超大文件仍受设备内存与 PDF.js 本身能力限制。高分辨率效果需在真实设备和高分辨率扫描件上验收。
+
+### 桌面窗口与阅读标签
+
+Electron 的 `window-manager.cjs` 管理一个书库窗口和一个共享阅读窗口。标签页在 `reader/tab-manager.js` 管理，每个标签只保存 `bookId`、标题和标签序列状态；切换标签先保存并关闭旧图书阅读控制器，释放阅读器资源，再按 ID 打开目标书。工作区快照保存在当前应用 localStorage，数据表与原书籍文件结构不变。
+
+验证使用 `npm run check` 和 `npm run test:ui`。UI 冒烟测试会在临时 Electron 用户目录中创建测试书，不会访问真实用户的书库。
+
+Android EPUB/TXT：轻点左 28% 后退、右 28% 前进、中心隐藏/显示上下工具栏；左右滑动继续支持。音量减键下一页、音量加键上一页，仅在阅读器打开时拦截；书架中音量键仍调节系统声音。
 
 Windows EPUB/TXT：方向键左/上上一页、右/下下一页；PageUp/PageDown、空格/Shift+空格翻页；H 隐藏/显示工具栏；Esc 先关闭打开的面板，再退出阅读器；F11 切换全屏，Ctrl+Shift+左右箭头仍用于位置撤销/前进。
 

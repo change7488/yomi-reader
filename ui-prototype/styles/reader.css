@@ -1,5 +1,59 @@
 /* Immersive reader, illustrations, notes and reading analytics */
 /* Chapter-aware immersive reader */
+.desktop-reader-window .app-shell{display:none}
+.desktop-reader-window .reader-modal{position:fixed;inset:0;z-index:100;display:flex}
+.desktop-reader-window .reader-modal.hidden{display:flex!important}
+.reader-tabs-bar{height:42px;flex:none;display:flex;align-items:center;gap:10px;padding:0 12px;background:var(--panel);border-bottom:1px solid var(--line);z-index:3}
+.reader-pdf-controls{display:flex;align-items:center;gap:5px;flex:none}
+.reader-pdf-controls label{display:flex;align-items:center;gap:3px;color:var(--muted);font-size:11px}
+.reader-pdf-controls input{width:52px;border:1px solid var(--line);border-radius:8px;background:var(--panel2);color:var(--text);padding:6px;text-align:center}
+.reader-pdf-controls.hidden{display:none}
+.pdf-comic-tools{border-top:1px solid var(--line);margin-top:18px;padding-top:14px}
+.pdf-comic-tools h3{font-size:13px;margin:0 0 12px}
+.pdf-comic-tools label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:10px 0;color:var(--muted);font-size:12px}
+.pdf-comic-tools select{max-width:55%;background:var(--panel2);color:var(--text);border:1px solid var(--line);border-radius:8px;padding:7px}
+.pdf-comic-tools .pdf-cover-option{justify-content:flex-start}
+.pdf-comic-tools>small{display:block;color:var(--muted);font-size:10px;line-height:1.6}
+.pdf-comic-tools.pdf-tools-emphasis{outline:2px solid var(--accent-strong);outline-offset:7px;border-radius:6px}
+.yomi-pdf-stage{width:100%;max-width:none;overflow:auto;padding:0;overscroll-behavior:contain;scroll-behavior:smooth}
+.yomi-pdf-pages{display:flex;flex-direction:column;align-items:center;gap:0;min-height:100%;padding:12px 0 42px}
+.yomi-pdf-page{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:flex-start;flex:none;max-width:100%;background:var(--reader-paper,#fff);color:#788078}
+.yomi-pdf-page>small{order:2;margin:5px 0 0;font:10px var(--font);opacity:.7}
+.yomi-pdf-page canvas{display:block;max-width:100%;height:auto;box-shadow:0 2px 16px #0002}
+.yomi-pdf-stage.is-zoomed{align-items:flex-start}
+.yomi-pdf-stage.is-zoomed .yomi-pdf-page canvas{max-width:none;cursor:grab}
+.yomi-pdf-error{color:#a1453c;padding:12px}
+.reader-pdf-thumbnails{position:absolute;z-index:6;left:0;top:0;bottom:0;width:260px;display:none;overflow:auto;background:var(--panel);border-right:1px solid var(--line);padding:12px}
+.reader-pdf-thumbnails.open{display:block}
+.reader-pdf-thumbnails>small{display:block;color:var(--muted);font-size:10px;padding:10px 2px}
+#readerPdfThumbnailItems{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px 0}
+.pdf-thumbnail{position:relative;display:flex;flex-direction:column;align-items:center;gap:4px;min-height:118px;border:1px solid var(--line);border-radius:8px;padding:5px;background:var(--panel2);color:var(--muted);font-size:10px}
+.pdf-thumbnail img{display:block;width:100%;height:92px;object-fit:contain;background:#fff}
+.pdf-thumbnail i{display:block;width:100%;height:92px;background:linear-gradient(110deg,var(--panel) 25%,var(--panel2) 40%,var(--panel) 55%);border-radius:3px}
+.pdf-thumbnail.selected{border-color:var(--accent-strong);box-shadow:0 0 0 1px var(--accent-strong)}
+.yomi-pdf-spread{flex-direction:row;align-items:flex-start;justify-content:center;gap:16px;min-height:100%;padding:12px 12px 42px}
+.yomi-pdf-spread .yomi-pdf-page{align-self:flex-start;max-width:calc(50% - 8px)}
+.yomi-pdf-spread .yomi-pdf-page canvas{max-height:calc(100dvh - 190px);width:auto!important}
+.yomi-pdf-single{justify-content:flex-start}
+.yomi-pdf-single .yomi-pdf-page{margin:0 auto}
+.desktop-reader-window .yomi-pdf-stage{width:100%;padding:0}
+.reader-return-library,.reader-reopen-tab{flex:none;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);padding:6px 10px;font-size:12px}
+.reader-reopen-tab:disabled{opacity:.45;cursor:default}
+.reader-tabs{display:flex;align-items:stretch;align-self:stretch;gap:4px;min-width:0;overflow:auto;scrollbar-width:thin;flex:1}
+.reader-tab{display:flex;align-items:center;max-width:240px;min-width:100px;border-radius:9px 9px 0 0;color:var(--muted);border-bottom:2px solid transparent}
+.reader-tab.active{color:var(--text);background:var(--panel2);border-bottom-color:var(--accent-strong)}
+.reader-tab-select,.reader-tab-close{border:0;background:transparent;color:inherit}
+.reader-tab-select{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;padding:8px 8px 8px 12px;flex:1;font-size:12px}
+.reader-tab-close{width:28px;height:28px;border-radius:8px;font-size:17px;line-height:1}
+.reader-tab-close:hover{background:var(--panel)}
+.reader-tab-menu{position:fixed;z-index:120;display:grid;min-width:170px;padding:5px;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 12px 36px #0002}
+.reader-tab-menu.hidden{display:none}
+.reader-tab-menu button{border:0;background:transparent;color:var(--text);text-align:left;padding:9px 11px;border-radius:8px}
+.reader-tab-menu button:hover{background:var(--panel2)}
+.reader-tab:focus-within,.reader-tab-menu button:focus-visible,.reader-tabs-bar button:focus-visible{outline:2px solid var(--accent-strong);outline-offset:1px}
+.desktop-reader-window .reader-top{height:56px;flex:none}
+.desktop-reader-window .reader-layout{min-height:0;flex:1}
+.desktop-reader-window .reader-stage{overscroll-behavior:contain}
 .reader-top{
   height:64px;
   flex:none;

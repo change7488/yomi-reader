@@ -3,11 +3,55 @@
 import { parseReaderDocument } from './index.js';
 import { advanceReadingState } from './position-services.js';
 import { isAndroidApp } from '../platform/mobile-shell.js';
-import { renderMobilePdf } from '../platform/pdf-viewer.js';
+import { renderPdfViewer } from '../platform/pdf-viewer.js';
 import { installReadingSurface } from './reading-interactions.js';
 
 export function createReaderController({ state, $, esc, toast, put, onboarding, renderDashboard, markReaderActivity, recordPageTurn, fontManager, chooseFontFiles }) {
   function currentReaderStyle() { return state.readerBook?.readerStyle || { fontSize: 17, lineHeight: 1.95, width: 1400, sideMargin: 32, indent: true, theme: 'paper', turnMode: 'page' }; }
+  function currentPdfSettings() { return { mode: 'document', direction: 'ltr', quality: 'auto', fit: 'width', zoom: 1, gap: 'standard', coverAlone: true, ...(state.readerBook?.pdfReaderSettings || {}) }; }
+  async function savePdfPosition(snapshot = state.readerPdfViewer?.getState?.()) {
+    const book = state.readerBook; if (!book || book.ext?.toLowerCase() !== 'pdf' || !snapshot) return;
+    book.pdfPage = snapshot.page;
+    book.pdfPageCount = snapshot.pageCount;
+    book.pdfScrollRatio = snapshot.scrollRatio ?? (snapshot.page - 1) / Math.max(1, snapshot.pageCount - 1);
+    book.progress = Math.floor(snapshot.progress * 100);
+    book.lastRead = Date.now();
+    await put('books', book);
+  }
+  function queuePdfPosition(snapshot) {
+    state.pendingPdfPosition = snapshot;
+    clearTimeout(state.pdfSaveTimer);
+    state.pdfSaveTimer = setTimeout(() => {
+      const pending = state.pendingPdfPosition; state.pendingPdfPosition = null;
+      savePdfPosition(pending).catch(error => console.warn('保存 PDF 阅读位置失败', error));
+    }, 650);
+  }
+  async function updatePdfSettings(patch) {
+    const book = state.readerBook; if (!book || !state.readerPdfViewer) return;
+    book.pdfReaderSettings = { ...currentPdfSettings(), ...patch };
+    if (patch.direction === 'ttb') book.pdfReaderSettings.mode = 'scroll';
+    if ((patch.mode === 'single' || patch.mode === 'double') && book.pdfReaderSettings.direction === 'ttb') book.pdfReaderSettings.direction = 'ltr';
+    $('pdfModeSelect').value = book.pdfReaderSettings.mode;
+    $('pdfDirectionSelect').value = book.pdfReaderSettings.direction;
+    state.readerPdfViewer.setSettings(book.pdfReaderSettings);
+    await put('books', book);
+  }
+  let pdfThumbnailToken = 0;
+  async function renderPdfThumbnails() {
+    const viewer = state.readerPdfViewer; if (!viewer) return;
+    const token = ++pdfThumbnailToken, host = $('readerPdfThumbnailItems');
+    const current = viewer.getState().page, start = Math.max(1, Math.min(viewer.pageCount - 23, current - 11));
+    const end = Math.min(viewer.pageCount, start + 23);
+    host.innerHTML = Array.from({ length: end - start + 1 }, (_, offset) => {
+      const page = start + offset; return `<button class="pdf-thumbnail${page === current ? ' selected' : ''}" data-pdf-thumbnail="${page}" aria-label="跳转到第 ${page} 页"><span>${page}</span><i></i></button>`;
+    }).join('');
+    for (const button of host.querySelectorAll('[data-pdf-thumbnail]')) {
+      if (token !== pdfThumbnailToken || viewer !== state.readerPdfViewer) return;
+      const page = Number(button.dataset.pdfThumbnail);
+      try { const image = await viewer.thumbnail(page); if (image && token === pdfThumbnailToken) { const img = document.createElement('img'); img.alt = ''; img.src = image; button.querySelector('i').replaceWith(img); } }
+      catch (error) { if (token === pdfThumbnailToken) console.warn('生成 PDF 缩略图失败', error); }
+    }
+  }
   function applyReaderStyle() {
     const style = { sideMargin: 32, ...currentReaderStyle() }, stage = $('readerStage');
     stage.style.fontSize = `${style.fontSize}px`; stage.style.lineHeight = String(style.lineHeight); stage.style.width = `min(${style.width}px, 100%)`;
@@ -46,8 +90,9 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     $('readerBookmarkItems').innerHTML = bookmarks.map((mark, index) => `<div class="bookmark-row"><button class="bookmark-jump" data-bookmark-index="${index}"><b>${esc(mark.chapterTitle)}</b><span>${new Date(mark.createdAt).toLocaleString()} · ${Math.round(mark.scroll || 0)} px</span></button><button class="bookmark-delete" data-bookmark-delete="${index}" aria-label="删除书签">×</button></div>`).join('') || '<p class="gallery-empty">还没有书签。阅读时点击顶部 ☆ 可保存当前位置。</p>';
   }
   function installReaderControls() {
-    $('readerModal').querySelector('.reader-top').insertAdjacentHTML('beforeend', '<button class="reader-tool reader-fullscreen" id="readerFullscreenToggle" title="切换全屏">⛶ <span>全屏</span></button>');
+    $('readerModal').querySelector('.reader-top').insertAdjacentHTML('beforeend', '<div class="reader-pdf-controls hidden" id="readerPdfControls"><button class="reader-tool" id="readerPdfPrev" title="上一页">‹</button><label><input id="readerPdfPageInput" type="number" min="1" value="1" aria-label="PDF 页码"> <span>/ <b id="readerPdfPageCount">0</b></span></label><button class="reader-tool" id="readerPdfNext" title="下一页">›</button><button class="reader-tool" id="readerPdfZoomOut" title="缩小">−</button><button class="reader-tool" id="readerPdfZoomValue" title="缩放比例">100%</button><button class="reader-tool" id="readerPdfZoomIn" title="放大">+</button><button class="reader-tool" id="readerPdfThumbnailsToggle" title="页面缩略图">▧</button><button class="reader-tool" id="readerPdfSettingsToggle" title="漫画与 PDF 设置">▤ <span>漫画模式</span></button></div><button class="reader-tool reader-fullscreen" id="readerFullscreenToggle" title="切换全屏">⛶ <span>全屏</span></button>');
     $('readerSettings').querySelector('.reader-toc-head').insertAdjacentHTML('afterend', '<label>滚动方式<select id="readerTurnMode"><option value="page">滚动翻页（带动画）</option><option value="continuous">连续滚动</option></select></label>');
+    $('readerSettings').insertAdjacentHTML('beforeend', '<section class="pdf-comic-tools hidden" id="pdfComicTools"><h3>漫画与 PDF</h3><label>阅读模式<select id="pdfModeSelect"><option value="document">普通文档</option><option value="scroll">纵向连续</option><option value="single">横向单页</option><option value="double">双页漫画</option></select></label><label>翻页方向<select id="pdfDirectionSelect"><option value="ltr">从左到右</option><option value="rtl">从右到左（日漫）</option><option value="ttb">从上到下</option></select></label><label>渲染画质<select id="pdfQualitySelect"><option value="auto">自动（推荐）</option><option value="standard">标准 1×</option><option value="hd">高清 1.5×</option><option value="ultra">超清 2×（受设备限制）</option></select></label><label>页面适配<select id="pdfFitSelect"><option value="width">适应宽度</option><option value="screen">适应屏幕</option><option value="original">原始比例</option></select></label><label>页面间距<select id="pdfGapSelect"><option value="none">无缝</option><option value="compact">紧凑</option><option value="standard">标准</option></select></label><label class="pdf-cover-option"><input id="pdfCoverAlone" type="checkbox" checked> 封面单独显示（双页模式）</label><small id="pdfRenderBudgetNote">画布像素受设备预算限制；高清仅提升 PDF 渲染采样，不会生成原稿不存在的细节。</small></section>');
     fontManager.attach($('readerSettings'), { reader: true, onSelect: id => updateReaderStyle('fontId', id), chooseFiles: chooseFontFiles });
     const widthLabel = $('readerWidthRange').closest('label');
     widthLabel.childNodes[0].textContent = '正文最大宽度 ';
@@ -59,6 +104,7 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     $('readerDock').insertAdjacentHTML('beforeend', '<div class="reader-seek-preview hidden" id="readerSeekPreview"><div><span id="readerSeekOrigin"></span><strong id="readerSeekTarget"></strong></div><button class="secondary-button" id="readerSeekCancel">取消预览</button><button class="primary-button" id="readerSeekConfirm">跳转至此处</button></div>');
     $('readerDock').insertAdjacentHTML('beforeend', '<div class="reader-undo-notice hidden" id="readerUndoNotice"><span id="readerUndoMessage"></span><button id="readerUndoAction">撤回</button></div>');
     $('readerModal').querySelector('.reader-layout').insertAdjacentHTML('beforeend', '<aside class="reader-position-history" id="readerPositionHistory"><div class="reader-toc-head"><strong>阅读位置历史</strong><button id="readerPositionHistoryClose" aria-label="关闭位置历史">×</button></div><div id="readerPositionHistoryItems"></div></aside>');
+    $('readerModal').querySelector('.reader-layout').insertAdjacentHTML('beforeend', '<aside class="reader-pdf-thumbnails" id="readerPdfThumbnails"><div class="reader-toc-head"><strong>页面缩略图</strong><button id="readerPdfThumbnailsClose" aria-label="关闭页面缩略图">×</button></div><div id="readerPdfThumbnailItems"></div><small>仅生成当前页附近的缩略图，减少内存占用。</small></aside>');
   }
   function renderReaderNotes() {
     const notes = state.readerBook?.notes || [];
@@ -404,29 +450,30 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     $('txtTools').classList.add('hidden');
     renderReaderNotes();
     if (ext === 'pdf') {
-      if (isAndroidApp()) {
-        try {
-          stage.__yomiPdfCleanup = await renderMobilePdf({ stage, file: book.file });
-          const restore = Math.max(0, Math.min(1, Number(book.pdfScrollRatio) || 0));
-          requestAnimationFrame(() => { stage.scrollTop = (stage.scrollHeight - stage.clientHeight) * restore; });
-          stage.onscroll = () => {
-            const ratio = stage.scrollTop / Math.max(1, stage.scrollHeight - stage.clientHeight);
-            book.pdfScrollRatio = Math.min(1, Math.max(0, ratio));
-            book.progress = Math.floor(book.pdfScrollRatio * 100);
-            clearTimeout(state.progressTimer);
-            state.progressTimer = setTimeout(() => put('books', book).catch(error => console.warn('保存 PDF 阅读进度失败', error)), 1200);
-          };
-        } catch (error) {
-          stage.textContent = '无法打开此 PDF：' + (error.message || error);
-          console.warn('Android PDF 预览失败', error);
+      stage.style.width = '100%'; stage.style.padding = '0';
+      $('pdfComicTools').classList.remove('hidden'); $('readerPdfControls').classList.remove('hidden');
+      const pdfSettings = currentPdfSettings();
+      $('pdfModeSelect').value = pdfSettings.mode; $('pdfDirectionSelect').value = pdfSettings.direction;
+      $('pdfQualitySelect').value = pdfSettings.quality; $('pdfFitSelect').value = pdfSettings.fit;
+      $('pdfGapSelect').value = pdfSettings.gap; $('pdfCoverAlone').checked = pdfSettings.coverAlone;
+      try {
+        const viewer = await renderPdfViewer({ stage, file: book.file, settings: { ...pdfSettings, page: book.pdfPage }, onProgress: queuePdfPosition, onState: snapshot => {
+          $('readerPdfPageCount').textContent = String(snapshot.pageCount); $('readerPdfPageInput').max = String(snapshot.pageCount);
+          $('readerPdfPageInput').value = String(snapshot.page); $('readerChapterLabel').textContent = `${snapshot.page} / ${snapshot.pageCount}`;
+          $('readerPdfZoomValue').textContent = `${Math.round(snapshot.settings.zoom * 100)}%`;
+          $('readerPositionBack').disabled = !snapshot.canUndo; $('readerPositionForward').disabled = !snapshot.canRedo;
+          $('readerProgressLabel').textContent = `${Math.round(snapshot.progress * 100)}%`;
+          $('readerProgressRange').value = String(Math.round(snapshot.progress * 1000));
+          $('readerPdfThumbnailItems').querySelectorAll('[data-pdf-thumbnail]').forEach(button => button.classList.toggle('selected', Number(button.dataset.pdfThumbnail) === snapshot.page));
+        } });
+        state.readerPdfViewer = viewer; stage.__yomiPdfCleanup = viewer.cleanup;
+        if (pdfSettings.mode === 'document' || pdfSettings.mode === 'scroll') {
+          const restoreRatio = Math.max(0, Math.min(1, Number(book.pdfScrollRatio) || 0));
+          if (book.pdfPage > 1 && pdfSettings.mode === 'scroll') requestAnimationFrame(() => viewer.gotoPage(book.pdfPage));
+          else requestAnimationFrame(() => { stage.scrollTop = (stage.scrollHeight - stage.clientHeight) * restoreRatio; });
         }
-      } else {
-        const frame = document.createElement('iframe'); frame.title = book.title;
-        frame.src = URL.createObjectURL(book.file);
-        state.readerObjectUrls.push(frame.src);
-        stage.append(frame);
-      }
-      $('readerChapterLabel').textContent = 'PDF 文档'; $('readerChapterTitle').textContent = 'PDF 阅读预览'; $('readerPrev').disabled = $('readerNext').disabled = $('readerBookmarkAdd').disabled = true; $('readerTocToggle').disabled = $('readerGalleryToggle').disabled = true; $('readerProgressRange').disabled = $('readerProgressPrev').disabled = $('readerProgressNext').disabled = true;
+      } catch (error) { stage.textContent = `无法打开此 PDF：${error.message || error}`; console.warn('PDF.js 阅读失败', error); }
+      $('readerChapterTitle').textContent = ''; $('readerPrev').disabled = $('readerNext').disabled = $('readerBookmarkAdd').disabled = true; $('readerTocToggle').disabled = $('readerGalleryToggle').disabled = true; $('readerProgressRange').disabled = $('readerProgressPrev').disabled = $('readerProgressNext').disabled = false;
       $('readerDockSearch').disabled = true;
     } else {
       $('readerDockSearch').disabled = false;
@@ -466,6 +513,10 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     clearTimeout(state.progressTimer);
     $('readerStage').__yomiPdfCleanup?.();
     $('readerStage').__yomiPdfCleanup = null;
+    clearTimeout(state.pdfSaveTimer);
+    if (state.pendingPdfPosition) await savePdfPosition(state.pendingPdfPosition).catch(error => console.warn('关闭时保存 PDF 位置失败', error));
+    state.pendingPdfPosition = null; state.readerPdfViewer = null;
+    $('pdfComicTools').classList.add('hidden'); $('readerPdfControls').classList.add('hidden');
     $('readerStage').onscroll = null;
     if (state.readerChapters.length) {
       const anchor = captureReaderAnchor();
@@ -497,6 +548,23 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     $('readerTocToggle').onclick = () => $('readerToc').classList.toggle('open'); $('readerTocClose').onclick = () => $('readerToc').classList.remove('open');
     $('readerGalleryToggle').onclick = () => $('readerGallery').classList.toggle('open'); $('readerGalleryClose').onclick = () => $('readerGallery').classList.remove('open');
     $('readerSettingsToggle').onclick = () => $('readerSettings').classList.toggle('open'); $('readerSettingsClose').onclick = () => $('readerSettings').classList.remove('open');
+    $('readerPdfSettingsToggle').onclick = () => { $('readerSettings').classList.add('open'); $('pdfComicTools').classList.toggle('pdf-tools-emphasis'); };
+    $('readerPdfThumbnailsToggle').onclick = () => { const panel = $('readerPdfThumbnails'); panel.classList.toggle('open'); if (panel.classList.contains('open')) void renderPdfThumbnails(); else pdfThumbnailToken++; };
+    $('readerPdfThumbnailsClose').onclick = () => { $('readerPdfThumbnails').classList.remove('open'); pdfThumbnailToken++; };
+    $('readerPdfThumbnailItems').onclick = event => { const button = event.target.closest('[data-pdf-thumbnail]'); if (!button || !state.readerPdfViewer) return; state.readerPdfViewer.gotoPage(Number(button.dataset.pdfThumbnail)); $('readerPdfThumbnails').classList.remove('open'); pdfThumbnailToken++; };
+    $('readerPdfPrev').onclick = () => state.readerPdfViewer?.previous(); $('readerPdfNext').onclick = () => state.readerPdfViewer?.next();
+    $('readerPdfZoomOut').onclick = () => void updatePdfSettings({ zoom: Math.max(.5, (Number(currentPdfSettings().zoom) || 1) - .1) });
+    $('readerPdfZoomIn').onclick = () => void updatePdfSettings({ zoom: Math.min(3, (Number(currentPdfSettings().zoom) || 1) + .1) });
+    $('readerPdfZoomValue').onclick = () => void updatePdfSettings({ zoom: 1, fit: 'width' });
+    const goToPdfPage = () => { const viewer = state.readerPdfViewer; if (!viewer) return; const page = Math.max(1, Math.min(viewer.pageCount, Number($('readerPdfPageInput').value) || 1)); viewer.gotoPage(page); };
+    $('readerPdfPageInput').onchange = goToPdfPage;
+    $('readerPdfPageInput').onkeydown = event => { if (event.key === 'Enter') { event.preventDefault(); goToPdfPage(); $('readerPdfPageInput').blur(); } };
+    $('pdfModeSelect').onchange = event => void updatePdfSettings({ mode: event.target.value });
+    $('pdfDirectionSelect').onchange = event => void updatePdfSettings({ direction: event.target.value });
+    $('pdfQualitySelect').onchange = event => void updatePdfSettings({ quality: event.target.value });
+    $('pdfFitSelect').onchange = event => void updatePdfSettings({ fit: event.target.value });
+    $('pdfGapSelect').onchange = event => void updatePdfSettings({ gap: event.target.value });
+    $('pdfCoverAlone').onchange = event => void updatePdfSettings({ coverAlone: event.target.checked });
     $('readerBookmarkAdd').onclick = addReaderBookmark; $('readerBookmarksClose').onclick = () => $('readerBookmarks').classList.remove('open');
     $('readerNotesClose').onclick = () => $('readerNotesPanel').classList.remove('open');
     $('readerDockSearch').onclick = () => { $('readerSearchPanel').classList.toggle('open'); if ($('readerSearchPanel').classList.contains('open')) $('readerSearchInput').focus(); };
@@ -565,11 +633,11 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
     document.addEventListener('keydown', e => { if (e.key === 'Escape' && themePicker.classList.contains('open')) closeThemePicker(); });
     $('readerDockSettings').onclick = () => $('readerSettings').classList.toggle('open');
     $('readerDockSpeak').onclick = toggleReaderSpeech;
-    $('readerProgressRange').oninput = e => { const percent = Number(e.target.value) / 10; e.target.style.setProperty('--progress', `${percent}%`); renderSeekPreview(Number(e.target.value)); };
-    $('readerProgressRange').onchange = e => renderSeekPreview(Number(e.target.value));
+    $('readerProgressRange').oninput = e => { const percent = Number(e.target.value) / 10; e.target.style.setProperty('--progress', `${percent}%`); if (state.readerBook?.ext?.toLowerCase() === 'pdf') { $('readerProgressLabel').textContent = `预览 ${percent.toFixed(1)}%`; return; } renderSeekPreview(Number(e.target.value)); };
+    $('readerProgressRange').onchange = e => { if (state.readerPdfViewer) { state.readerPdfViewer.gotoPage(Math.max(1, Math.round(Number(e.target.value) / 1000 * state.readerPdfViewer.pageCount))); return; } renderSeekPreview(Number(e.target.value)); };
     $('readerSeekCancel').onclick = () => { state.pendingSeekValue = null; $('readerSeekPreview').classList.add('hidden'); updateReaderProgressUI(); };
     $('readerSeekConfirm').onclick = confirmProgressSeek;
-    $('readerPositionBack').onclick = navigateReaderBack; $('readerPositionForward').onclick = navigateReaderForward;
+    $('readerPositionBack').onclick = () => state.readerPdfViewer ? state.readerPdfViewer.undo() : navigateReaderBack(); $('readerPositionForward').onclick = () => state.readerPdfViewer ? state.readerPdfViewer.redo() : navigateReaderForward();
     $('readerPositionHistoryToggle').onclick = () => { renderReaderPositionHistory(); $('readerPositionHistory').classList.toggle('open'); };
     $('readerPositionHistoryClose').onclick = () => $('readerPositionHistory').classList.remove('open');
     $('readerPositionHistoryItems').onclick = e => {
@@ -583,8 +651,8 @@ export function createReaderController({ state, $, esc, toast, put, onboarding, 
         if (target) { const from = captureReaderAnchor(); state.navigationService.restoreEntry(book.id, { targetAnchor: target }, from); await restoreReaderAnchor(target); await persistReaderPosition(true); showReaderUndoNotice(from, target); renderReaderPositionHistory(); }
       });
     };
-    $('readerProgressPrev').onclick = () => moveReaderPage(-1);
-    $('readerProgressNext').onclick = () => moveReaderPage(1);
+    $('readerProgressPrev').onclick = () => state.readerPdfViewer ? state.readerPdfViewer.previous() : moveReaderPage(-1);
+    $('readerProgressNext').onclick = () => state.readerPdfViewer ? state.readerPdfViewer.next() : moveReaderPage(1);
     $('readerPrev').onclick = () => { if (state.readerChapterIndex > 0) { animateReaderTurn(-1); renderChapter(state.readerChapterIndex - 1); persistReaderPosition(); } };
     $('readerNext').onclick = () => { if (state.readerChapterIndex < state.readerChapters.length - 1) { animateReaderTurn(1); renderChapter(state.readerChapterIndex + 1); persistReaderPosition(); } };
     $('readerTocItems').onclick = e => {
