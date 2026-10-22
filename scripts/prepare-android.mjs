@@ -6,10 +6,10 @@ import { fileURLToPath } from 'node:url';
 
 const root = resolve(fileURLToPath(new URL('..', import.meta.url)));
 const target = join(root, 'dist', 'android');
-const pdf = join(root, 'mobile', 'node_modules', 'pdfjs-dist', 'build');
+const pdf = join(root, 'node_modules', 'pdfjs-dist', 'build');
 for (const name of ['pdf.mjs', 'pdf.worker.mjs']) {
   if (!existsSync(join(pdf, name))) {
-    throw new Error('缺少离线 PDF 引擎。请先运行 npm run android:deps。');
+    throw new Error('缺少离线 PDF 引擎。请先在项目根目录运行 npm install。');
   }
 }
 rmSync(target, { recursive: true, force: true });
@@ -19,7 +19,9 @@ cpSync(join(root, 'ui-prototype'), target, {
   filter: path => !/\.test\.mjs$|(^|[\\/])README\.md$/.test(path)
 });
 mkdirSync(join(target, 'vendor', 'pdfjs'), { recursive: true });
+mkdirSync(join(root, 'ui-prototype', 'vendor', 'pdfjs'), { recursive: true });
 for (const name of ['pdf.mjs', 'pdf.worker.mjs']) {
   copyFileSync(join(pdf, name), join(target, 'vendor', 'pdfjs', name));
+  copyFileSync(join(pdf, name), join(root, 'ui-prototype', 'vendor', 'pdfjs', name));
 }
 console.log('Android 共享网页资源准备完成：dist/android');

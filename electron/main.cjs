@@ -3,6 +3,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const { MAX_FILE_SIZE, copyBook, isWithinFolder, restoreStagedLibraryBook, scanFolder, stageLibraryBookForDeletion, verifyStagedLibraryBook } = require('./library-storage.cjs');
+const { WindowManager } = require('./window-manager.cjs');
 
 const APP_SCHEME = 'libra';
 const ONLINE_PARTITION = 'persist:libra-online-library';
@@ -12,6 +13,15 @@ const APP_ICON = path.resolve(__dirname, '..', 'assets', 'yomi-reader.ico');
 const CONFIG_FILE = () => path.join(app.getPath('userData'), 'desktop-settings.json');
 const LOG_FILE = () => path.join(app.getPath('userData'), 'libra-reader.log');
 let mainWindow;
+let readerWindow;
+let readerReady = false;
+let readerCloseAllowed = false;
+let readerCloseRequested = false;
+let quitAfterReaderClose = false;
+let appQuitApproved = false;
+let pendingReaderBooks = [];
+let readerBoundsTimer;
+let windowManager;
 let scanTimer;
 let lastSeen = new Map();
 let stableCounts = new Map();
@@ -56,6 +66,26 @@ function normalizeWebUrl(raw) {
     const url = new URL(raw);
     return url.protocol === 'https:' ? url.href : null;
   } catch { return null; }
+}
+
+function sendBookToReader(win, bookId) {
+  if (!readerReady || win.webContents.isLoading()) {
+    pendingReaderBooks.push(bookId);
+    return;
+  }
+  win.webContents.send('desktop-open-book', bookId);
+}
+
+function requestApplicationQuit() {
+  if (!windowManager) return app.quit();
+  if (!readerWindow || readerWindow.isDestroyed()) {
+    windowManager.requestQuit();
+    appQuitApproved = true;
+    return app.quit();
+  }
+  quitAfterReaderClose = true;
+  readerCloseRequested = true;
+  if (readerReady) readerWindow.webContents.send('desktop-reader-close-request', { quit: true });
 }
 
 function attachOnlineWindowRules(win) {
@@ -235,7 +265,89 @@ function createMainWindow() {
   mainWindow.once('ready-to-show', () => mainWindow.show());
   mainWindow.loadURL(`${APP_SCHEME}://app/index.html`);
   mainWindow.on('closed', () => { mainWindow = null; });
+  mainWindow.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && input.key?.toLowerCase() === 'q') { event.preventDefault(); requestApplicationQuit(); }
+  });
+  return mainWindow;
 }
+
+function createReaderWindow(bookId) {
+  readerReady = false;
+  readerCloseRequested = false;
+  pendingReaderBooks = [];
+  const saved = readConfig().readerWindowBounds || {};
+  const bounds = {
+    width: Number.isFinite(saved.width) ? Math.max(760, saved.width) : 1320,
+    height: Number.isFinite(saved.height) ? Math.max(600, saved.height) : 900
+  };
+  if (Number.isFinite(saved.x)) bounds.x = saved.x;
+  if (Number.isFinite(saved.y)) bounds.y = saved.y;
+  readerWindow = new BrowserWindow({
+    ...bounds,
+    minWidth: 760,
+    minHeight: 600,
+    show: false,
+    backgroundColor: '#f7f6f2',
+    title: '正在阅读 · Yomi Reader',
+    icon: APP_ICON,
+    autoHideMenuBar: true,
+    webPreferences: {
+      preload: path.join(__dirname, 'preload.cjs'),
+      nodeIntegration: false,
+      contextIsolation: true,
+      sandbox: true,
+      webviewTag: false
+    }
+  });
+  const win = readerWindow;
+  win.on('close', event => {
+    if (readerCloseAllowed) { readerCloseAllowed = false; return; }
+    event.preventDefault();
+    readerCloseRequested = true;
+    if (readerReady) win.webContents.send('desktop-reader-close-request', { quit: quitAfterReaderClose });
+  });
+  const saveBounds = () => {
+    if (win.isDestroyed() || win.isMaximized() || win.isFullScreen()) return;
+    clearTimeout(readerBoundsTimer);
+    readerBoundsTimer = setTimeout(() => {
+      if (!win.isDestroyed()) writeConfig({ readerWindowBounds: win.getBounds() });
+    }, 400);
+  };
+  win.on('resize', saveBounds);
+  win.on('move', saveBounds);
+  win.on('maximize', () => writeConfig({ readerWindowMaximized: true }));
+  win.on('unmaximize', () => { writeConfig({ readerWindowMaximized: false }); saveBounds(); });
+  win.once('ready-to-show', () => {
+    if (saved.maximized || readConfig().readerWindowMaximized) win.maximize();
+    win.show();
+  });
+  win.on('closed', () => {
+    clearTimeout(readerBoundsTimer);
+    if (readerWindow === win) readerWindow = null;
+    readerReady = false;
+    readerCloseRequested = false;
+    pendingReaderBooks = [];
+    if (quitAfterReaderClose) {
+      quitAfterReaderClose = false;
+      windowManager?.requestQuit();
+      appQuitApproved = true;
+      app.quit();
+    }
+  });
+  win.webContents.on('before-input-event', (event, input) => {
+    if ((input.control || input.meta) && input.key?.toLowerCase() === 'q') { event.preventDefault(); requestApplicationQuit(); }
+  });
+  const query = new URLSearchParams({ window: 'reader', bookId });
+  win.loadURL(`${APP_SCHEME}://app/index.html?${query}`).catch(error => log(`READER_LOAD_ERROR ${error.message}`));
+  return win;
+}
+
+windowManager = new WindowManager({
+  createMainWindow,
+  createReaderWindow,
+  sendBookToReader,
+  onQuit: () => app.quit()
+});
 
 // A second launch should activate the existing window instead of competing for
 // the same Chromium cache and IndexedDB files. Keep the existing appId/userData.
@@ -243,10 +355,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    if (!mainWindow || mainWindow.isDestroyed()) return;
-    if (mainWindow.isMinimized()) mainWindow.restore();
-    mainWindow.show();
-    mainWindow.focus();
+    windowManager.focusMain();
   });
 
 app.whenReady().then(() => {
@@ -254,6 +363,34 @@ app.whenReady().then(() => {
     const file = safeFilePathFromAppUrl(request.url);
     if (!file) return new Response('Not found', { status: 404 });
     return net.fetch(pathToFileURL(file).href);
+  });
+
+  ipcMain.handle('desktop:open-reader', (event, bookId) => {
+    if (event.sender !== mainWindow?.webContents || typeof bookId !== 'string' || !bookId || bookId.length > 200) throw new Error('无权打开此图书');
+    windowManager.openReader(bookId);
+    return true;
+  });
+  ipcMain.handle('desktop:reader-ready', event => {
+    if (event.sender !== readerWindow?.webContents) return false;
+    readerReady = true;
+    const queued = pendingReaderBooks.splice(0);
+    for (const bookId of queued) sendBookToReader(readerWindow, bookId);
+    if (readerCloseRequested) readerWindow.webContents.send('desktop-reader-close-request', { quit: quitAfterReaderClose });
+    return true;
+  });
+  ipcMain.handle('desktop:focus-library', event => {
+    if (event.sender !== readerWindow?.webContents) return false;
+    const focused = windowManager.focusMain();
+    if (readerWindow && !readerWindow.isDestroyed()) readerWindow.hide();
+    return focused;
+  });
+  ipcMain.handle('desktop:confirm-reader-close', event => {
+    if (event.sender !== readerWindow?.webContents || !readerWindow || readerWindow.isDestroyed()) return false;
+    readerCloseAllowed = true;
+    if (quitAfterReaderClose) { windowManager.requestQuit(); appQuitApproved = true; }
+    readerWindow.close();
+    if (appQuitApproved) app.quit();
+    return true;
   });
 
   ipcMain.handle('desktop:choose-folder', async event => {
@@ -296,7 +433,7 @@ app.whenReady().then(() => {
     return { name: path.basename(target), lastModified: stat.mtimeMs, bytes: await fs.promises.readFile(target) };
   });
   ipcMain.handle('desktop:get-library-folder', async event => {
-    if (event.sender !== mainWindow?.webContents) return null;
+    if (event.sender !== mainWindow?.webContents && event.sender !== readerWindow?.webContents) return null;
     const folder = getLibraryFolder(); await fs.promises.mkdir(folder, { recursive: true }); return folder;
   });
   ipcMain.handle('desktop:choose-library-folder', async event => {
@@ -325,7 +462,7 @@ app.whenReady().then(() => {
     writeConfig({ libraryFolder: target }); pendingLibraryFolders.delete(target); return target;
   });
   ipcMain.handle('desktop:read-library-book', async (event, filePath) => {
-    if (event.sender !== mainWindow?.webContents || typeof filePath !== 'string') return null;
+    if ((event.sender !== mainWindow?.webContents && event.sender !== readerWindow?.webContents) || typeof filePath !== 'string') return null;
     const folder = path.resolve(getLibraryFolder()), target = path.resolve(filePath);
     if (!isWithinFolder(folder, target)) return null;
     const stat = await fs.promises.stat(target);
@@ -355,11 +492,19 @@ app.whenReady().then(() => {
   });
 
   configureOnlineSession();
-  createMainWindow();
+  windowManager.openMain();
   mainWindow.webContents.once('did-finish-load', () => startFolderMonitor());
-  app.on('activate', () => { if (BrowserWindow.getAllWindows().length === 0) createMainWindow(); });
+  app.on('activate', () => windowManager.focusMain());
 });
 }
 
-app.on('window-all-closed', () => { if (process.platform !== 'darwin') app.quit(); });
-app.on('before-quit', () => { if (scanTimer) clearInterval(scanTimer); });
+app.on('window-all-closed', () => windowManager.handleAllWindowsClosed());
+app.on('before-quit', event => {
+  if (readerWindow && !readerWindow.isDestroyed() && !appQuitApproved) {
+    event.preventDefault();
+    requestApplicationQuit();
+    return;
+  }
+  if (scanTimer) clearInterval(scanTimer);
+  clearTimeout(readerBoundsTimer);
+});

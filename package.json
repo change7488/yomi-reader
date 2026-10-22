@@ -14,18 +14,20 @@
     "test:reader": "node --test ui-prototype/reader/*.test.mjs",
     "dist:win": "electron-builder --win nsis --publish never",
     "check": "npm run check:syntax && npm test",
-    "check:syntax": "node --check electron/main.cjs && node --check ui-prototype/app.js && node --check ui-prototype/library/folder-import-policy.js && node --check ui-prototype/platform/android-files.js && node --check ui-prototype/fonts/catalog.js && node --check ui-prototype/fonts/font-manager.js && node --check ui-prototype/reader/reader-controller.js && node --check ui-prototype/reader/reading-interactions.js && node --check ui-prototype/storage/database.js && node --check ui-prototype/platform/mobile-shell.js && node --check ui-prototype/platform/pdf-viewer.js && node --check ui-prototype/library/library-view.js && node --check ui-prototype/home/dashboard-view.js && node --check ui-prototype/analytics/reading-analytics.js && node --check ui-prototype/downloads/task-view.js && node --check ui-prototype/onboarding/onboarding.js && node --check scripts/prepare-android.mjs && node --check scripts/sync-fonts.mjs && node --check scripts/configure-android.mjs && node --check scripts/build-android.mjs",
+    "check:syntax": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/ui-smoke.cjs && node --check electron/window-manager.cjs && node --check ui-prototype/app.js && node --check ui-prototype/library/folder-import-policy.js && node --check ui-prototype/platform/android-files.js && node --check ui-prototype/fonts/catalog.js && node --check ui-prototype/fonts/font-manager.js && node --check ui-prototype/reader/reader-controller.js && node --check ui-prototype/reader/tab-manager.js && node --check ui-prototype/reader/reading-interactions.js && node --check ui-prototype/storage/database.js && node --check ui-prototype/platform/mobile-shell.js && node --check ui-prototype/platform/pdf-viewer.js && node --check ui-prototype/library/library-view.js && node --check ui-prototype/home/dashboard-view.js && node --check ui-prototype/analytics/reading-analytics.js && node --check ui-prototype/downloads/task-view.js && node --check ui-prototype/onboarding/onboarding.js && node --check scripts/prepare-android.mjs && node --check scripts/sync-fonts.mjs && node --check scripts/sync-pdfjs.mjs && node --check scripts/configure-android.mjs && node --check scripts/build-android.mjs",
     "android:deps": "npm install --prefix mobile --no-package-lock --ignore-scripts",
     "android:prepare": "node scripts/prepare-android.mjs",
     "android:apk": "node scripts/build-android.mjs",
     "fonts:sync": "node scripts/sync-fonts.mjs",
-    "prestart": "npm run fonts:sync",
-    "predist:win": "npm run fonts:sync",
-    "pretest:ui": "npm run fonts:sync"
+    "prestart": "npm run fonts:sync && npm run pdfjs:sync",
+    "predist:win": "npm run fonts:sync && npm run pdfjs:sync",
+    "pretest:ui": "npm run fonts:sync && npm run pdfjs:sync",
+    "pdfjs:sync": "node scripts/sync-pdfjs.mjs"
   },
   "devDependencies": {
     "electron": "45.0.0",
-    "electron-builder": "26.15.3"
+    "electron-builder": "26.15.3",
+    "pdfjs-dist": "6.4.299"
   },
   "build": {
     "appId": "app.libra.reader",

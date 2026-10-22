@@ -28,5 +28,8 @@ android/
 ui-prototype/fonts/builtin/
 ui-prototype/fonts/licenses/
 
+# PDF.js runtime copied from the pinned npm dependency during start/test/build.
+ui-prototype/vendor/pdfjs/
+
 # Generated copy of the Windows original app logo used by both UI shells.
 ui-prototype/assets/yomi-reader.png
