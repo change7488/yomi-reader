@@ -69,6 +69,35 @@ app.whenReady().then(async () => {
       $('readerBack').click();
       await new Promise((resolve,reject) => { const started=Date.now(); const check=() => { if ($('readerModal').classList.contains('hidden')) resolve(); else if (Date.now()-started>5000) reject(new Error('关闭阅读页超时')); else setTimeout(check,40); }; check(); });
       checks.readerClose = $('readerModal').classList.contains('hidden');
+
+      // Regression: previewing a large directory must not create hundreds of row nodes.
+      $('dashboardImportFolderBtn').click();
+      const manyFiles = new DataTransfer();
+      for (let i = 0; i < 180; i++) {
+        const file = new File(['sample'], 'novel-' + i + '.epub', {type:'application/epub+zip'});
+        Object.defineProperty(file, 'webkitRelativePath', { value: 'ExampleFolder/novel-' + i + '.epub' });
+        manyFiles.items.add(file);
+      }
+      $('folderInput').files = manyFiles.files;
+      $('folderInput').dispatchEvent(new Event('change', { bubbles:true }));
+      await new Promise((resolve,reject) => {
+        const begin=Date.now();
+        const tick=() => {
+          if ($('folderScanSummary').textContent.includes('180') && $('folderFileList').querySelectorAll('.folder-file-row').length === 60) resolve();
+          else if (Date.now()-begin>5000) reject(new Error('文件夹扫描预览超时：'+$('folderScanSummary').textContent));
+          else setTimeout(tick,40);
+        }; tick();
+      });
+      checks.folderPreviewBounded = $('folderFileList').querySelectorAll('.folder-file-row').length === 60;
+      $('folderFileList').querySelector('[data-folder-show-more]').click();
+      checks.folderShowMore = $('folderFileList').querySelectorAll('.folder-file-row').length === 120;
+      $('folderSelectAll').checked = false;
+      $('folderSelectAll').dispatchEvent(new Event('change', { bubbles: true }));
+      checks.folderUnselectAll = $('folderImportStart').disabled;
+      $('folderSelectAll').checked = true;
+      $('folderSelectAll').dispatchEvent(new Event('change', { bubbles: true }));
+      checks.folderBatchLimit = $('folderImportStart').textContent.includes('50') && $('folderImportStart').textContent.includes('130');
+      $('folderImportClose').click();
       return checks;
     })()`);
     console.log(JSON.stringify(result));
