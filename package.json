@@ -1,6 +1,6 @@
 {
   "name": "libra-reader-desktop",
-  "version": "0.3.1",
+  "version": "0.3.2",
   "type": "module",
   "description": "Yomi Reader shared offline ebook reader for Windows and Android",
   "main": "electron/main.cjs",

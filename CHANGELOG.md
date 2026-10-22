@@ -2,7 +2,7 @@
 
 记录 Yomi Reader 的用户可见改动、兼容性及已知限制。版本遵循语义化版本，当前仍为预览软件。
 
-## [Unreleased]
+## [0.3.2] - 2026-10-22
 
 ### Windows 阅读工作区
 - 书库窗口和独立阅读窗口可同时工作；打开多本书会复用同一阅读窗口的标签页，支持排序、关闭与恢复最近关闭的标签。
@@ -68,3 +68,4 @@
 [0.2.3]: https://github.com/change7488/yomi-reader/releases/tag/v0.2.3
 
 [0.3.1]: https://github.com/change7488/yomi-reader/releases/tag/v0.3.1
+[0.3.2]: https://github.com/change7488/yomi-reader/releases/tag/v0.3.2
