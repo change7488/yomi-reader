@@ -8,7 +8,7 @@
 - Windows 和 Android 共用的**离线阅读字体库**：20 款经授权的字体风格（19 款含中文字符），类别筛选、字体预览、按书设置、全局默认字体。
 - 支持导入并保存 TTF、OTF、WOFF、WOFF2 自定义字体；格式文件头校验、16 MB 单文件限制、同内容去重、删除与缺失字体安全回退。
 - Android 安装图标直接使用 Windows 端原创 `assets/yomi-reader.png`；统一图标素材，不使用 Capacitor 默认图案。
-- Windows x64 安装程序及 Android ARM64 APK 均纳入 GitHub Actions 构建产物。
+- Windows x64 安装程序及 Android ARM64 APK 均纳入 GitHub Actions 构建产物，并在双端校验通过后发布至带 SHA-256 校验表的 GitHub Releases（预览版）。
 - 阅读器首次启动引导、使用帮助、重新体验教程入口。
 
 ### 改进
@@ -32,5 +32,5 @@
 - Windows 本地轻小说阅读器预览版。
 - EPUB/TXT/PDF 导入、图书馆、目录、阅读主题和进度历史基础能力。
 
-[0.3.0]: https://github.com/change7488/yomi-reader/compare/v0.2.3...main
+[0.3.0]: https://github.com/change7488/yomi-reader/releases/tag/v0.3.0
 [0.2.3]: https://github.com/change7488/yomi-reader/releases/tag/v0.2.3
